@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -13,10 +13,28 @@ import {
   Clock,
   Calendar,
   Zap,
-  Target
+  Target,
+  Loader2
 } from 'lucide-react';
+import { fetchEnrolledCoursesProgress } from '../../services/api';
+
+// Demo/fallback data when API is unavailable
+const DEMO_DATA = {
+  completionPercentage: 72,
+  totalLessonsCompleted: 8,
+  totalLessonsCount: 12,
+  totalQuestionsAnswered: 32,
+  streak: 12,
+  strongTopics: ['Arrays', 'Linked Lists'],
+  weakTopics: ['Recursion', 'Complexity'],
+  masteryIndex: 78,
+};
 
 export const ProgressDashboard = ({ onContinueLearning }) => {
+  const [progressData, setProgressData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUsingDemo, setIsUsingDemo] = useState(false);
+
   const [goals, setGoals] = useState([
     { id: 1, text: 'Complete Arrays lesson', done: true },
     { id: 2, text: 'Solve 5 quiz questions', done: false },
@@ -24,11 +42,103 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
     { id: 4, text: 'Revise key points', done: false },
   ]);
 
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const result = await fetchEnrolledCoursesProgress();
+        if (result?.success && result.data) {
+          const { courses, totalLessonsCompleted, totalQuestionsAnswered, overallStreak } = result.data;
+
+          // Calculate aggregated stats
+          let totalLessons = 0;
+          const allStrongTopics = [];
+          const allWeakTopics = [];
+
+          for (const course of courses || []) {
+            totalLessons += course.totalLessons || 0;
+          }
+
+          const completionPercentage =
+            totalLessons > 0
+              ? Math.round((totalLessonsCompleted / totalLessons) * 100)
+              : 0;
+
+          // Mastery index: weighted blend of completion % and quiz performance
+          const masteryIndex = totalLessons > 0
+            ? Math.min(100, Math.round(completionPercentage * 0.6 + Math.min(100, totalQuestionsAnswered * 2) * 0.4))
+            : 0;
+
+          setProgressData({
+            completionPercentage,
+            totalLessonsCompleted: totalLessonsCompleted || 0,
+            totalLessonsCount: totalLessons,
+            totalQuestionsAnswered: totalQuestionsAnswered || 0,
+            streak: overallStreak?.current || 0,
+            strongTopics: allStrongTopics.length > 0 ? allStrongTopics : DEMO_DATA.strongTopics,
+            weakTopics: allWeakTopics.length > 0 ? allWeakTopics : DEMO_DATA.weakTopics,
+            masteryIndex,
+            courses: courses || [],
+          });
+
+          // If we got data but user has no courses, show demo-like state
+          if (!courses || courses.length === 0) {
+            setIsUsingDemo(true);
+            setProgressData(DEMO_DATA);
+          }
+        } else {
+          setIsUsingDemo(true);
+          setProgressData(DEMO_DATA);
+        }
+      } catch {
+        // API unavailable (no auth, network error, etc.) → show demo data
+        setIsUsingDemo(true);
+        setProgressData(DEMO_DATA);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProgress();
+  }, []);
+
   const toggleGoal = (id) => {
     setGoals((prev) =>
       prev.map((g) => (g.id === id ? { ...g, done: !g.done } : g))
     );
   };
+
+  // Derive display values
+  const data = progressData || DEMO_DATA;
+  const overallPct = data.completionPercentage ?? 0;
+  const lessonsText = data.totalLessonsCount
+    ? `${data.totalLessonsCompleted}/${data.totalLessonsCount}`
+    : `${data.totalLessonsCompleted}`;
+  const questionsCount = data.totalQuestionsAnswered ?? 0;
+  const streakCount = data.streak ?? 0;
+  const masteryPct = data.masteryIndex ?? 0;
+  const strongTopics = data.strongTopics || [];
+  const weakTopics = data.weakTopics || [];
+
+  const retentionLabel = masteryPct >= 70
+    ? 'Optimal Retention'
+    : masteryPct >= 40
+      ? 'Building Momentum'
+      : 'Getting Started';
+
+  const retentionColorClass = masteryPct >= 70
+    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+    : masteryPct >= 40
+      ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+      : 'bg-slate-500/10 text-slate-300 border-slate-500/20';
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+        <span className="text-sm text-slate-400 ml-3">Loading progress...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -39,9 +149,19 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
           My Progress
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Keep going! You're doing great.
+          {isUsingDemo
+            ? 'Start a course to track your real progress!'
+            : "Keep going! You're doing great."}
         </p>
       </div>
+
+      {/* Demo indicator */}
+      {isUsingDemo && (
+        <div className="p-3 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center space-x-2 text-xs text-amber-300/80">
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          <span>Showing sample data — enroll in a course and complete lessons to see your real stats.</span>
+        </div>
+      )}
 
       {/* Top Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -59,7 +179,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
               />
               <path
                 className="text-cyan-400"
-                strokeDasharray="72, 100"
+                strokeDasharray={`${overallPct}, 100`}
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 stroke="currentColor"
@@ -67,10 +187,10 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               />
             </svg>
-            <span className="absolute text-xs font-black text-white">72%</span>
+            <span className="absolute text-xs font-black text-white">{overallPct}%</span>
           </div>
           <div>
-            <p className="text-lg font-black text-white">72%</p>
+            <p className="text-lg font-black text-white">{overallPct}%</p>
             <p className="text-[11px] text-slate-400 font-semibold">Overall Progress</p>
           </div>
         </div>
@@ -81,7 +201,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-lg font-black text-white">8/12</p>
+            <p className="text-lg font-black text-white">{lessonsText}</p>
             <p className="text-[11px] text-slate-400 font-semibold">Lessons Completed</p>
           </div>
         </div>
@@ -92,7 +212,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-lg font-black text-white">32</p>
+            <p className="text-lg font-black text-white">{questionsCount}</p>
             <p className="text-[11px] text-slate-400 font-semibold">Questions Solved</p>
           </div>
         </div>
@@ -103,7 +223,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
             <Flame className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-lg font-black text-white">12</p>
+            <p className="text-lg font-black text-white">{streakCount}</p>
             <p className="text-[11px] text-slate-400 font-semibold">Day Streak 🔥</p>
           </div>
         </div>
@@ -119,8 +239,8 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
             
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white">Learning Health</h3>
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Optimal Retention
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${retentionColorClass}`}>
+                {retentionLabel}
               </span>
             </div>
 
@@ -139,7 +259,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
                     />
                     <path
                       className="text-emerald-400"
-                      strokeDasharray="78, 100"
+                      strokeDasharray={`${masteryPct}, 100`}
                       strokeWidth="3.5"
                       strokeLinecap="round"
                       stroke="currentColor"
@@ -147,7 +267,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                     />
                   </svg>
-                  <span className="absolute text-sm font-black text-white">78%</span>
+                  <span className="absolute text-sm font-black text-white">{masteryPct}%</span>
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white">Mastery Index</p>
@@ -162,14 +282,14 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
                     Strong
                   </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    <span className="flex items-center space-x-1 text-slate-200">
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span>Arrays</span>
-                    </span>
-                    <span className="flex items-center space-x-1 text-slate-200">
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span>Linked Lists</span>
-                    </span>
+                    {strongTopics.length > 0 ? strongTopics.map((topic, i) => (
+                      <span key={i} className="flex items-center space-x-1 text-slate-200">
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span>{topic}</span>
+                      </span>
+                    )) : (
+                      <span className="text-slate-500 italic">Complete quizzes to see strengths</span>
+                    )}
                   </div>
                 </div>
 
@@ -178,14 +298,14 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
                     Needs Revision
                   </span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    <span className="flex items-center space-x-1 text-slate-200">
-                      <AlertTriangle className="w-3 h-3 text-amber-400" />
-                      <span>Recursion</span>
-                    </span>
-                    <span className="flex items-center space-x-1 text-slate-200">
-                      <AlertTriangle className="w-3 h-3 text-amber-400" />
-                      <span>Complexity</span>
-                    </span>
+                    {weakTopics.length > 0 ? weakTopics.map((topic, i) => (
+                      <span key={i} className="flex items-center space-x-1 text-slate-200">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        <span>{topic}</span>
+                      </span>
+                    )) : (
+                      <span className="text-slate-500 italic">No weak areas detected yet</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -197,7 +317,11 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
               <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
               <div>
                 <span className="font-bold text-indigo-300">AI Recommendation: </span>
-                <span className="text-slate-300">"Revise recursion and tree traversal before starting non-linear structures."</span>
+                <span className="text-slate-300">
+                  {weakTopics.length > 0
+                    ? `"Focus on revising ${weakTopics.slice(0, 2).join(' and ')} to strengthen your foundation."`
+                    : '"Keep completing lessons and quizzes to unlock personalized recommendations."'}
+                </span>
               </div>
             </div>
 
@@ -212,7 +336,7 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
               <h3 className="text-base font-bold text-white">Today's Goal</h3>
               <span className="text-[11px] font-semibold text-slate-400 flex items-center space-x-1">
                 <Calendar className="w-3 h-3 text-indigo-400" />
-                <span>Mon, 20 Sep</span>
+                <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
               </span>
             </div>
 

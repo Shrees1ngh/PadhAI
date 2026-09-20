@@ -1,4 +1,8 @@
-import { PDFParse } from "pdf-parse";
+// NOTE: pdf-parse is loaded via dynamic import() inside extractTextFromPdf()
+// rather than a top-level static import. This is intentional — pdf-parse v2
+// pulls in pdfjs-dist which accesses DOMMatrix at module evaluation time.
+// DOMMatrix is a browser API absent from Node.js, so a static import crashes
+// the server before Express can even bind its port.
 import { parseOffice } from "officeparser";
 import AdmZip from "adm-zip";
 
@@ -62,25 +66,36 @@ const extractTextFromPptxZip = (buffer) => {
 };
 
 /**
- * Extract text from PDF buffer using pdf-parse.
+ * Extract text from PDF buffer using pdf-parse (loaded dynamically).
  */
 const extractTextFromPdf = async (buffer) => {
+  let PDFParse;
+  try {
+    const mod = await import("pdf-parse");
+    PDFParse = mod.PDFParse;
+  } catch (importErr) {
+    // Surface a clear message when the DOMMatrix / canvas polyfill is missing
+    if (
+      importErr.message?.includes("DOMMatrix") ||
+      importErr.message?.includes("@napi-rs/canvas")
+    ) {
+      throw new Error(
+        "PDF parsing is unavailable: the pdfjs-dist dependency requires a DOMMatrix polyfill " +
+        "(@napi-rs/canvas). Install it with `npm install @napi-rs/canvas` or use TXT/PPTX uploads instead."
+      );
+    }
+    throw new Error(`Failed to load PDF parser: ${importErr.message}`);
+  }
+
   try {
     const parser = new PDFParse({ data: buffer });
-    await parser.load();
     const result = await parser.getText();
-    if (typeof result === "string") {
-      return result;
-    }
-    if (result && typeof result.text === "string") {
-      return result.text;
-    }
-    if (result && Array.isArray(result.pages)) {
-      return result.pages.map((p) => p.text || "").join("\n\n");
-    }
-    return String(result || "");
+    // result is a TextResult with { text: string, pages: PageTextResult[], total: number }
+    const text = result?.text || result?.pages?.map((p) => p.text || "").join("\n\n") || String(result || "");
+    await parser.destroy();
+    return text;
   } catch (err) {
-    console.warn("PDFParse load error, attempting fallback string conversion:", err.message);
+    console.warn("PDFParse extraction error:", err.message);
     throw new Error(`Failed to extract text from PDF: ${err.message}`);
   }
 };

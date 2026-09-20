@@ -194,5 +194,20 @@ export const getGoogleAuthUrl = async () => {
   return await api.get('/auth/google/url');
 };
 
-export default api;
+// ==================================
+// PROGRESS TRACKING API SERVICES
+// ==================================
 
+export const fetchEnrolledCoursesProgress = async () => {
+  return await api.get('/progress/enrolled-courses');
+};
+
+export const fetchCourseProgress = async (courseId) => {
+  return await api.get(`/progress/${courseId}`);
+};
+
+export const completeTopicProgress = async ({ courseId, moduleIndex, lessonIndex }) => {
+  return await api.post('/progress/complete-topic', { courseId, moduleIndex, lessonIndex });
+};
+
+export default api;
