@@ -9,10 +9,10 @@ import {
   FileCode2, 
   TrendingUp, 
   Settings,
-  ChevronRight,
   X
 } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
+import BranchedMenu from './BranchedMenu';
 
 export const Sidebar = ({ 
   currentView = 'home', 
@@ -23,16 +23,39 @@ export const Sidebar = ({
 }) => {
   const { currentUser, isAuthenticated, openAuthModal } = useAuth();
 
-  const navItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'my-learning', label: 'My Courses', icon: BookOpen, badge: activeCourse ? 'Active' : null },
-    { id: 'flashcards', label: 'Flashcards', icon: Layers },
-    { id: 'cheatsheets', label: 'Cheatsheets', icon: FileCode2 },
-    { id: 'planner', label: 'Study Planner', icon: Calendar },
-    { id: 'upload-material', label: 'Upload Material', icon: FileUp },
-    { id: 'progress', label: 'Progress', icon: TrendingUp },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  const menuSections = [
+    {
+      label: 'Learning Hub',
+      children: [
+        { value: 'home', label: 'Home', icon: Home },
+        { value: 'my-learning', label: 'My Courses', icon: BookOpen, badge: activeCourse ? 'Active' : null },
+      ]
+    },
+    {
+      label: 'AI Study Tools',
+      children: [
+        { value: 'flashcards', label: 'Flashcards', icon: Layers },
+        { value: 'cheatsheets', label: 'Cheatsheets', icon: FileCode2 },
+        { value: 'planner', label: 'Study Planner', icon: Calendar },
+        { value: 'upload-material', label: 'Upload Material', icon: FileUp },
+      ]
+    },
+    {
+      label: 'Analytics & System',
+      children: [
+        { value: 'progress', label: 'Progress', icon: TrendingUp },
+        { value: 'settings', label: 'Settings', icon: Settings },
+      ]
+    }
   ];
+
+  const currentActiveValue = (
+    currentView === 'course-wizard' || 
+    currentView === 'roadmap' || 
+    currentView === 'lessons' || 
+    currentView === 'quiz' || 
+    currentView === 'cheatsheet'
+  ) ? 'my-learning' : currentView;
 
   const handleItemClick = (viewId) => {
     onSelectView(viewId);
@@ -87,55 +110,26 @@ export const Sidebar = ({
         )}
       </div>
 
-      {/* Navigation Section */}
-      <div className="flex-1 py-5 px-3 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 flex items-center justify-between">
-          <span className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">
-            Platform Menu
-          </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80 shadow-sm shadow-cyan-400 animate-pulse" />
-        </div>
-
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id || 
-            (item.id === 'my-learning' && ['course-wizard', 'roadmap', 'lessons', 'quiz', 'cheatsheet', 'flashcards'].includes(currentView));
-
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleItemClick(item.id)}
-              className={`w-full relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group min-h-[42px] ${
-                isActive
-                  ? 'bg-gradient-to-r from-cyan-500/15 via-indigo-500/10 to-transparent text-white border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.05] border border-transparent'
-              }`}
-            >
-              {/* Active Glow Accent Bar on Left */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-gradient-to-b from-cyan-400 to-indigo-500 shadow-sm shadow-cyan-400" />
-              )}
-
-              <div className="flex items-center space-x-3 min-w-0">
-                <Icon className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 shrink-0 ${
-                  isActive ? 'text-cyan-400 filter drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]' : 'text-slate-400 group-hover:text-slate-200'
-                }`} />
-                <span className="truncate tracking-tight">{item.label}</span>
-              </div>
-
-              <div className="flex items-center space-x-1 shrink-0">
-                {item.badge && (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
-                    {item.badge}
-                  </span>
-                )}
-                <ChevronRight className={`w-3 h-3 transition-all duration-200 ${
-                  isActive ? 'text-cyan-400/80 opacity-100' : 'text-slate-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5'
-                }`} />
-              </div>
-            </button>
-          );
-        })}
+      {/* Navigation Section via BranchedMenu */}
+      <div className="flex-1 py-4 px-3 overflow-y-auto">
+        <BranchedMenu
+          items={menuSections}
+          defaultOpen={[0, 1, 2]}
+          activeValue={currentActiveValue}
+          onSelect={(value) => handleItemClick(value)}
+          color="#94a3b8"
+          accentColor="#38bdf8"
+          lineColor="#202c3f"
+          width={240}
+          rowHeight={38}
+          indent={36}
+          trunk={14}
+          radius={10}
+          lineWidth={1.5}
+          fontSize={13}
+          drawDuration={350}
+          foldDuration={250}
+        />
       </div>
 
       {/* Bottom User Profile or Pro AI Banner */}
