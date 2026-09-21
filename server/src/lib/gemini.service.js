@@ -74,7 +74,15 @@ export const callGemini = async ({
   }
 
   const ai = new GoogleGenAI({ apiKey: activeKey });
-  const modelName = model || ENV.GEMINI_MODEL || "gemini-3.6-flash";
+  const configuredModel = model || ENV.GEMINI_MODEL || "gemini-2.5-flash";
+
+  // Fallback candidate models when primary is experiencing 503 high demand or capacity issues
+  const candidateModels = [
+    configuredModel,
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
 
   const config = {
     temperature,
@@ -88,106 +96,129 @@ export const callGemini = async ({
     config.systemInstruction = systemInstruction;
   }
 
-  let attempts = 0;
-  const maxAttempts = 2; // 1 initial + max 1 retry
+  let lastError = null;
 
-  while (attempts < maxAttempts) {
-    attempts++;
-    try {
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config,
-      });
+  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+    const currentModel = candidateModels[mIdx];
 
-      const rawOutput =
-        response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        response?.text ||
-        "";
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: currentModel,
+          contents: prompt,
+          config,
+        });
 
-      if (jsonMode) {
-        const parsed = cleanAndParseJson(rawOutput);
-        if (responseSchema && typeof responseSchema.parse === "function") {
-          return responseSchema.parse(parsed);
+        const rawOutput =
+          response?.candidates?.[0]?.content?.parts?.[0]?.text ||
+          response?.text ||
+          "";
+
+        if (jsonMode) {
+          const parsed = cleanAndParseJson(rawOutput);
+          if (responseSchema && typeof responseSchema.parse === "function") {
+            return responseSchema.parse(parsed);
+          }
+          return parsed;
         }
-        return parsed;
+
+        return rawOutput;
+      } catch (error) {
+        lastError = error;
+
+        // Check for 429 (Quota / Rate Limit) - NEVER RETRY
+        const is429 =
+          error.status === 429 ||
+          error.message?.includes("429") ||
+          error.message?.includes("Quota exceeded") ||
+          error.message?.includes("RESOURCE_EXHAUSTED") ||
+          error.code === "QUOTA_EXCEEDED";
+
+        if (is429) {
+          const rateLimitErr = new Error(
+            "Gemini API rate limit or daily quota reached. Please add your personal Gemini API key in Settings to continue."
+          );
+          rateLimitErr.status = 429;
+          rateLimitErr.code = "QUOTA_EXCEEDED";
+          throw rateLimitErr;
+        }
+
+        // Check for 401 (Invalid API Key) - NEVER RETRY
+        const is401 =
+          error.status === 401 ||
+          error.message?.includes("API key not valid") ||
+          error.message?.includes("API_KEY_INVALID") ||
+          error.message?.includes("401") ||
+          error.code === "INVALID_API_KEY";
+
+        if (is401) {
+          const keyErr = new Error("Invalid Gemini API Key. Please verify your key in Settings.");
+          keyErr.status = 401;
+          keyErr.code = "INVALID_API_KEY";
+          throw keyErr;
+        }
+
+        // Check for Zod / Schema validation error - DO NOT RETRY SAME MODEL
+        if (error.name === "ZodError" || error.issues) {
+          const issues = error.issues || error.errors || [];
+          const valErr = new Error(
+            `AI output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
+          );
+          valErr.status = 502;
+          valErr.code = "AI_OUTPUT_INVALID";
+          throw valErr;
+        }
+
+        // Check if eligible for retry: 5xx server errors, 503 high demand, overloaded, or JSON parse failure
+        const is5xx =
+          (error.status >= 500 && error.status < 600) ||
+          error.message?.includes("500") ||
+          error.message?.includes("503") ||
+          error.message?.includes("UNAVAILABLE") ||
+          error.message?.includes("high demand") ||
+          error.message?.includes("Internal server error") ||
+          error.message?.includes("Service Unavailable") ||
+          error.message?.includes("overloaded");
+
+        const isJsonParseError =
+          error.code === "AI_OUTPUT_INVALID" ||
+          error.message?.includes("Failed to parse AI response into valid JSON") ||
+          error instanceof SyntaxError ||
+          error.name === "SyntaxError";
+
+        if (is5xx || isJsonParseError) {
+          console.warn(
+            `callGemini transient error on model "${currentModel}" (attempt ${attempt}/2):`,
+            error.message?.slice(0, 200)
+          );
+          await new Promise((res) => setTimeout(res, attempt * 600));
+          // If on attempt 2, loop continues to next candidate model
+        } else {
+          // Unrecognized error, break inner loop to try next model or fail
+          break;
+        }
       }
-
-      return rawOutput;
-    } catch (error) {
-      // Check for 429 (Quota / Rate Limit) - NEVER RETRY
-      const is429 =
-        error.status === 429 ||
-        error.message?.includes("429") ||
-        error.message?.includes("Quota exceeded") ||
-        error.message?.includes("RESOURCE_EXHAUSTED") ||
-        error.code === "QUOTA_EXCEEDED";
-
-      if (is429) {
-        const rateLimitErr = new Error(
-          "Gemini API rate limit or daily quota reached. Please add your personal Gemini API key in Settings to continue."
-        );
-        rateLimitErr.status = 429;
-        rateLimitErr.code = "QUOTA_EXCEEDED";
-        throw rateLimitErr;
-      }
-
-      // Check for 401 (Invalid API Key) - NEVER RETRY
-      const is401 =
-        error.status === 401 ||
-        error.message?.includes("API key not valid") ||
-        error.message?.includes("API_KEY_INVALID") ||
-        error.message?.includes("401") ||
-        error.code === "INVALID_API_KEY";
-
-      if (is401) {
-        const keyErr = new Error("Invalid Gemini API Key. Please verify your key in Settings.");
-        keyErr.status = 401;
-        keyErr.code = "INVALID_API_KEY";
-        throw keyErr;
-      }
-
-      // Check for Zod / Schema validation error - DO NOT RETRY
-      if (error.name === "ZodError" || error.issues) {
-        const issues = error.issues || error.errors || [];
-        const valErr = new Error(
-          `AI output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
-        );
-        valErr.status = 502;
-        valErr.code = "AI_OUTPUT_INVALID";
-        throw valErr;
-      }
-
-      // Check if eligible for retry: ONLY 5xx server errors or JSON parse failure
-      const is5xx =
-        (error.status >= 500 && error.status < 600) ||
-        error.message?.includes("500") ||
-        error.message?.includes("503") ||
-        error.message?.includes("Internal server error") ||
-        error.message?.includes("Service Unavailable") ||
-        error.message?.includes("overloaded");
-
-      const isJsonParseError =
-        error.code === "AI_OUTPUT_INVALID" ||
-        error.message?.includes("Failed to parse AI response into valid JSON") ||
-        error instanceof SyntaxError ||
-        error.name === "SyntaxError";
-
-      if (attempts < maxAttempts && (is5xx || isJsonParseError)) {
-        console.warn(
-          `callGemini transient error (attempt ${attempts}/${maxAttempts}), retrying:`,
-          error.message
-        );
-        await new Promise((res) => setTimeout(res, 500));
-        continue;
-      }
-
-      // Final failure propagation
-      if (!error.status) error.status = 502;
-      if (!error.code) error.code = "AI_OUTPUT_INVALID";
-      throw error;
     }
   }
+
+  // Extract clean message if Google returned a raw JSON error string
+  let finalMessage = lastError?.message || "Google AI service is currently unavailable. Please try again.";
+  if (typeof finalMessage === "string" && finalMessage.includes('{"error":')) {
+    try {
+      const match = finalMessage.match(/\{"error":.*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (parsed?.error?.message) {
+          finalMessage = parsed.error.message;
+        }
+      }
+    } catch {}
+  }
+
+  const finalError = new Error(finalMessage);
+  finalError.status = lastError?.status || 503;
+  finalError.code = lastError?.code || "AI_SERVICE_UNAVAILABLE";
+  throw finalError;
 };
 
 /**

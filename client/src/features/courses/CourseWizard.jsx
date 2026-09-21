@@ -244,13 +244,21 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3"
+          className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start justify-between space-x-3"
         >
-          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <span className="font-bold">System Notice: </span>
-            {error}
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-bold">System Notice: </span>
+              {error}
+            </div>
           </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-rose-400 hover:text-rose-200 text-xs font-bold px-1.5 py-0.5 rounded transition-colors"
+          >
+            ✕
+          </button>
         </motion.div>
       )}
 

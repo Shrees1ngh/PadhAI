@@ -24,7 +24,7 @@ export const ENV = {
   MONGO_URI: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/padhai",
   CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
-  GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.6-flash",
+  GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY || "",
   JWT_SECRET: jwtSecret,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",

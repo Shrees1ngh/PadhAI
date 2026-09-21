@@ -27,11 +27,25 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message =
+    let rawMessage =
       error.response?.data?.message ||
       error.message ||
       'An unexpected network error occurred';
-    const enhancedError = new Error(message);
+
+    // If message is a raw JSON string like {"error":{"code":503,...}}, extract the inner text
+    if (typeof rawMessage === 'string' && rawMessage.includes('{"error":')) {
+      try {
+        const match = rawMessage.match(/\{"error":.*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (parsed?.error?.message) {
+            rawMessage = parsed.error.message;
+          }
+        }
+      } catch {}
+    }
+
+    const enhancedError = new Error(rawMessage);
     enhancedError.status = error.response?.status;
     enhancedError.data = error.response?.data;
     enhancedError.code = error.response?.data?.code;
