@@ -217,6 +217,10 @@ export const getGoogleAuthUrl = async () => {
   return await api.get('/auth/google/url');
 };
 
+export const exchangeAuthCode = async (code) => {
+  return await api.post('/auth/exchange', { code });
+};
+
 // ==================================
 // PROGRESS TRACKING API SERVICES
 // ==================================

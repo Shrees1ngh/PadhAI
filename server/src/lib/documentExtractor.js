@@ -15,6 +15,30 @@ const extractTextFromPptxZip = (buffer) => {
     const zip = new AdmZip(buffer);
     const zipEntries = zip.getEntries();
 
+    // 1. Cap total entries (<= 500)
+    if (zipEntries.length > 500) {
+      throw new Error("PPTX contains too many entries (exceeds safe limit of 500).");
+    }
+
+    // 2. Cap per-entry size (<= 5MB) and total uncompressed size (<= 50MB) BEFORE getData()
+    const MAX_ENTRY_SIZE = 5 * 1024 * 1024; // 5 MB
+    const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50 MB
+    let totalUncompressedSize = 0;
+
+    for (const entry of zipEntries) {
+      const entrySize =
+        entry.header?.size ?? entry.header?.uncompressedSize ?? entry.uncompressedSize ?? 0;
+      if (entrySize > MAX_ENTRY_SIZE) {
+        throw new Error(
+          `PPTX entry "${entry.entryName}" exceeds maximum allowed uncompressed size of 5 MB.`
+        );
+      }
+      totalUncompressedSize += entrySize;
+      if (totalUncompressedSize > MAX_TOTAL_SIZE) {
+        throw new Error("PPTX total uncompressed content exceeds safe limit of 50 MB.");
+      }
+    }
+
     // Find all slide XML entries
     const slideEntries = zipEntries
       .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/i.test(entry.entryName))
@@ -61,6 +85,9 @@ const extractTextFromPptxZip = (buffer) => {
     return slidesText.filter(Boolean).join("\n\n");
   } catch (err) {
     console.warn("Direct PPTX zip extraction encountered an error:", err.message);
+    if (err.message?.includes("exceeds") || err.message?.includes("safe limit")) {
+      throw err;
+    }
     return "";
   }
 };

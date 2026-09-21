@@ -29,30 +29,47 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Attach basic decoded info immediately
-    req.user = {
-      id: decoded.id,
-      email: decoded.email,
-      name: decoded.name,
-      avatar: decoded.avatar || "",
-    };
+    const isDbConnected = mongoose.connection.readyState === 1;
 
-    // Attempt to verify against active database user if DB is connected
-    try {
-      if (mongoose.connection.readyState === 1) {
-        const user = await User.findById(decoded.id).select("-passwordHash");
-        if (user) {
-          req.user = {
-            id: user._id.toString(),
-            email: user.email,
-            name: user.name,
-            avatar: user.avatar || "",
-            authProvider: user.authProvider,
-          };
-        }
+    if (isDbConnected) {
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(decoded.id);
+      let user = null;
+      if (isValidObjectId) {
+        user = await User.findById(decoded.id).select("-passwordHash");
       }
-    } catch (dbErr) {
-      // Continue with decoded token payload if DB read is transiently unavailable
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          code: "USER_NOT_FOUND",
+          message: "User account no longer exists. Please log in again.",
+        });
+      }
+
+      req.user = {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar || "",
+        authProvider: user.authProvider,
+        emailVerified: !!user.emailVerified,
+      };
+    } else {
+      const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
+      if (isProduction) {
+        return res.status(503).json({
+          success: false,
+          code: "DATABASE_UNAVAILABLE",
+          message: "Authentication service temporarily unavailable in production.",
+        });
+      }
+      // Dev mode fallback
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        name: decoded.name,
+        avatar: decoded.avatar || "",
+        authProvider: decoded.authProvider || "local",
+      };
     }
 
     next();

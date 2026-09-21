@@ -1,12 +1,30 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import User from "./user.model.js";
-import { registerInputSchema, loginInputSchema } from "./auth.validator.js";
+import {
+  registerInputSchema,
+  loginInputSchema,
+  exchangeCodeInputSchema,
+} from "./auth.validator.js";
 import { ENV } from "../../config/env.js";
 
 // In-memory fallback registry for local development when MongoDB is offline
 const memoryUsers = new Map();
+
+// Single-use authentication code cache for OAuth exchange (60s TTL)
+const authCodeStore = new Map();
+
+// Periodic cleanup of expired auth codes
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of authCodeStore.entries()) {
+    if (entry.expiresAt < now) {
+      authCodeStore.delete(code);
+    }
+  }
+}, 30000);
 
 // Helper to generate standard JWT token
 export const generateUserToken = (user) => {
@@ -32,6 +50,7 @@ export const registerHandler = async (req, res) => {
     const validatedInput = registerInputSchema.parse(req.body);
     const normalizedEmail = validatedInput.email.toLowerCase().trim();
     const isDbConnected = mongoose.connection.readyState === 1;
+    const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
 
     // Hash password with bcrypt (10 rounds)
     const passwordHash = await bcrypt.hash(validatedInput.password, 10);
@@ -55,17 +74,26 @@ export const registerHandler = async (req, res) => {
           passwordHash,
           avatar: validatedInput.avatar || "",
           authProvider: "local",
+          emailVerified: false,
         });
 
         await newUser.save();
         savedUserObj = newUser.toJSON();
         dbSuccess = true;
       } catch (dbErr) {
-        console.warn("MongoDB register failed, using in-memory fallback:", dbErr.message);
+        console.warn("MongoDB register failed:", dbErr.message);
       }
     }
 
     if (!dbSuccess) {
+      if (isProduction) {
+        return res.status(503).json({
+          success: false,
+          code: "DATABASE_UNAVAILABLE",
+          message: "Registration service is temporarily unavailable.",
+        });
+      }
+
       if (memoryUsers.has(normalizedEmail)) {
         return res.status(409).json({
           success: false,
@@ -74,14 +102,16 @@ export const registerHandler = async (req, res) => {
         });
       }
 
+      const devObjectId = new mongoose.Types.ObjectId().toString();
       const devUser = {
-        _id: "usr_" + Date.now(),
-        id: "usr_" + Date.now(),
+        _id: devObjectId,
+        id: devObjectId,
         name: validatedInput.name,
         email: normalizedEmail,
         passwordHash,
         avatar: validatedInput.avatar || "",
         authProvider: "local",
+        emailVerified: false,
         createdAt: new Date().toISOString(),
       };
 
@@ -92,6 +122,7 @@ export const registerHandler = async (req, res) => {
         email: devUser.email,
         avatar: devUser.avatar,
         authProvider: "local",
+        emailVerified: false,
       };
     }
 
@@ -128,6 +159,7 @@ export const loginHandler = async (req, res) => {
     const validatedInput = loginInputSchema.parse(req.body);
     const normalizedEmail = validatedInput.email.toLowerCase().trim();
     const isDbConnected = mongoose.connection.readyState === 1;
+    const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
 
     let user = null;
     let passwordHashToCompare = null;
@@ -140,12 +172,12 @@ export const loginHandler = async (req, res) => {
           passwordHashToCompare = dbUser.passwordHash;
         }
       } catch (dbErr) {
-        console.warn("MongoDB login lookup failed, checking in-memory store:", dbErr.message);
+        console.warn("MongoDB login lookup failed:", dbErr.message);
       }
     }
 
-    // Fallback to memory store if not found in DB
-    if (!user && memoryUsers.has(normalizedEmail)) {
+    // Fallback to memory store if not found in DB (dev mode only)
+    if (!user && !isProduction && memoryUsers.has(normalizedEmail)) {
       user = memoryUsers.get(normalizedEmail);
       passwordHashToCompare = user.passwordHash;
     }
@@ -186,6 +218,7 @@ export const loginHandler = async (req, res) => {
       email: user.email,
       avatar: user.avatar || "",
       authProvider: user.authProvider || "local",
+      emailVerified: !!user.emailVerified,
     };
 
     return res.status(200).json({
@@ -228,7 +261,7 @@ export const getMeHandler = async (req, res) => {
       }
     }
 
-    // Return decoded token user info immediately
+    // Return decoded token user info
     return res.status(200).json({
       success: true,
       user: {
@@ -237,6 +270,7 @@ export const getMeHandler = async (req, res) => {
         email: req.user.email,
         avatar: req.user.avatar || "",
         authProvider: req.user.authProvider || "local",
+        emailVerified: !!req.user.emailVerified,
       },
     });
   } catch (error) {
@@ -250,7 +284,7 @@ export const getMeHandler = async (req, res) => {
 
 /**
  * GET /api/auth/google/url
- * Returns the Google OAuth 2.0 authorization URL
+ * Returns the Google OAuth 2.0 authorization URL with CSRF state token
  */
 export const getGoogleAuthUrlHandler = (req, res) => {
   if (!ENV.GOOGLE_CLIENT_ID) {
@@ -262,6 +296,16 @@ export const getGoogleAuthUrlHandler = (req, res) => {
     });
   }
 
+  const state = crypto.randomBytes(32).toString("hex");
+
+  // Store state in httpOnly cookie (10 min expiry)
+  res.cookie("google_oauth_state", state, {
+    httpOnly: true,
+    secure: ENV.NODE_ENV === "production" || process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 10 * 60 * 1000,
+  });
+
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const options = {
     redirect_uri: ENV.GOOGLE_CALLBACK_URL,
@@ -269,6 +313,7 @@ export const getGoogleAuthUrlHandler = (req, res) => {
     access_type: "offline",
     response_type: "code",
     prompt: "consent",
+    state,
     scope: [
       "https://www.googleapis.com/auth/userinfo.profile",
       "https://www.googleapis.com/auth/userinfo.email",
@@ -287,16 +332,30 @@ export const getGoogleAuthUrlHandler = (req, res) => {
 
 /**
  * GET /api/auth/google/callback
- * Handles Google OAuth callback redirect
+ * Handles Google OAuth callback redirect, verifies state, checks email_verified, and generates a single-use exchange code
  */
 export const googleCallbackHandler = async (req, res) => {
-  const { code, error } = req.query;
+  const { code, state, error } = req.query;
+  const cookieState = req.cookies?.google_oauth_state;
+
+  // Clear state cookie
+  res.clearCookie("google_oauth_state");
 
   if (error || !code) {
     console.warn("Google OAuth error or cancellation:", error);
     return res.redirect(
       `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
         error || "Google authentication was cancelled or failed."
+      )}`
+    );
+  }
+
+  // Verify OAuth state
+  if (!state || !cookieState || state !== cookieState) {
+    console.warn("Google OAuth state verification failed. State:", state, "Cookie:", cookieState);
+    return res.redirect(
+      `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
+        "Google OAuth state verification failed. Possible CSRF attempt."
       )}`
     );
   }
@@ -319,7 +378,7 @@ export const googleCallbackHandler = async (req, res) => {
     });
 
     const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || !tokenData.access_type && !tokenData.id_token && !tokenData.access_token) {
+    if (!tokenResponse.ok || (!tokenData.access_token && !tokenData.id_token)) {
       throw new Error(tokenData.error_description || tokenData.error || "Failed to exchange code with Google");
     }
 
@@ -333,6 +392,15 @@ export const googleCallbackHandler = async (req, res) => {
       throw new Error("Could not retrieve email from Google profile.");
     }
 
+    // Require email_verified === true
+    if (googleUser.email_verified !== true && googleUser.verified_email !== true) {
+      return res.redirect(
+        `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
+          "Your Google email is not verified. Please verify your email with Google before signing in."
+        )}`
+      );
+    }
+
     const normalizedEmail = googleUser.email.toLowerCase().trim();
     const googleId = googleUser.sub;
     const name = googleUser.name || googleUser.given_name || "Google Learner";
@@ -344,31 +412,56 @@ export const googleCallbackHandler = async (req, res) => {
     });
 
     if (user) {
-      // Safely link Google ID if user originally registered via email
-      if (!user.googleId) {
+      // Check if user is a local account without Google linked yet
+      if (user.authProvider === "local" && !user.googleId) {
+        if (!user.emailVerified) {
+          return res.redirect(
+            `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
+              "An account with this email exists but is not verified. Please log in with your email and password to verify your account before linking Google."
+            )}`
+          );
+        }
         user.googleId = googleId;
       }
+
       if (!user.avatar && avatar) {
         user.avatar = avatar;
       }
       await user.save();
     } else {
-      // Create new Google OAuth user
+      // Create new Google OAuth user (emailVerified is true because Google verified it)
       user = new User({
         name,
         email: normalizedEmail,
         googleId,
         avatar,
         authProvider: "google",
+        emailVerified: true,
       });
       await user.save();
     }
 
     // 4. Generate JWT
     const token = generateUserToken(user);
+    const userObj = user.toJSON ? user.toJSON() : {
+      id: user.id || user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar || "",
+      authProvider: user.authProvider || "google",
+      emailVerified: true,
+    };
 
-    // 5. Redirect back to frontend with session token
-    return res.redirect(`${ENV.CLIENT_URL}/?auth_token=${token}&auth_success=true`);
+    // 5. Store one-time auth code (60s, single use)
+    const authCode = crypto.randomBytes(24).toString("hex");
+    authCodeStore.set(authCode, {
+      token,
+      user: userObj,
+      expiresAt: Date.now() + 60 * 1000,
+    });
+
+    // 6. Redirect to frontend with one-time exchange code
+    return res.redirect(`${ENV.CLIENT_URL}/?auth_code=${authCode}&auth_success=true`);
   } catch (err) {
     console.error("Google OAuth callback error:", err);
     return res.redirect(
@@ -378,3 +471,52 @@ export const googleCallbackHandler = async (req, res) => {
     );
   }
 };
+
+/**
+ * POST /api/auth/exchange
+ * Exchanges a single-use 60s auth_code from OAuth callback for a JWT token and user profile
+ */
+export const exchangeCodeHandler = async (req, res) => {
+  try {
+    const { code } = exchangeCodeInputSchema.parse(req.body);
+    const entry = authCodeStore.get(code);
+
+    if (!entry) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_AUTH_CODE",
+        message: "Authentication code is invalid or has already been used.",
+      });
+    }
+
+    // Remove immediately for single-use guarantee
+    authCodeStore.delete(code);
+
+    if (entry.expiresAt < Date.now()) {
+      return res.status(400).json({
+        success: false,
+        code: "AUTH_CODE_EXPIRED",
+        message: "Authentication code has expired (60s limit). Please sign in again.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      token: entry.token,
+      user: entry.user,
+    });
+  } catch (err) {
+    if (err.name === "ZodError" || err.issues) {
+      const issues = err.issues || err.errors || [];
+      return res.status(400).json({
+        success: false,
+        message: issues[0]?.message || "Invalid exchange code request.",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to exchange auth code.",
+    });
+  }
+};
+

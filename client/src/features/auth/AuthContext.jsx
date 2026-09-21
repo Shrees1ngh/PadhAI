@@ -4,6 +4,7 @@ import {
   loginUser as apiLoginUser,
   fetchCurrentUser as apiFetchCurrentUser,
   getGoogleAuthUrl as apiGetGoogleAuthUrl,
+  exchangeAuthCode as apiExchangeAuthCode,
 } from '../../services/api';
 
 const AuthContext = createContext(null);
@@ -20,13 +21,39 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
 
-      // 1. Check URL parameters for Google OAuth callback tokens or errors
+      // 1. Check URL parameters for Google OAuth callback code, tokens, or errors
       const urlParams = new URLSearchParams(window.location.search);
+      const urlCode = urlParams.get('auth_code');
       const urlToken = urlParams.get('auth_token');
       const authSuccess = urlParams.get('auth_success');
       const authError = urlParams.get('auth_error');
 
-      if (urlToken) {
+      if (urlCode) {
+        try {
+          const exchangeRes = await apiExchangeAuthCode(urlCode);
+          if (exchangeRes?.success && exchangeRes.token) {
+            localStorage.setItem('padhai_auth_token', exchangeRes.token);
+            if (exchangeRes.user) {
+              setCurrentUser(exchangeRes.user);
+            }
+            if (authSuccess) {
+              setAuthNotification({
+                type: 'success',
+                message: 'Signed in with Google successfully!',
+              });
+            }
+          }
+        } catch (exErr) {
+          console.error('Failed to exchange OAuth code:', exErr);
+          setAuthNotification({
+            type: 'error',
+            message: exErr.message || 'Failed to complete Google authentication.',
+          });
+        }
+        // Clean URL parameters without reloading
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      } else if (urlToken) {
         localStorage.setItem('padhai_auth_token', urlToken);
         // Clean URL parameters without reloading
         const cleanUrl = window.location.pathname + window.location.hash;

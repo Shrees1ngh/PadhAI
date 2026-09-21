@@ -5,6 +5,7 @@ import {
   getMeHandler,
   getGoogleAuthUrlHandler,
   googleCallbackHandler,
+  exchangeCodeHandler,
 } from "./auth.controller.js";
 import { authenticateToken } from "./auth.middleware.js";
 import { authRateLimiter } from "./rateLimiter.middleware.js";
@@ -14,6 +15,7 @@ const router = Router();
 // Local Authentication Endpoints (Rate Limited)
 router.post("/register", authRateLimiter, registerHandler);
 router.post("/login", authRateLimiter, loginHandler);
+router.post("/exchange", authRateLimiter, exchangeCodeHandler);
 router.get("/me", authenticateToken, getMeHandler);
 
 // Google OAuth 2.0 Endpoints
