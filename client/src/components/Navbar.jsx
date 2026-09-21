@@ -1,235 +1,315 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  BookOpen, 
-  User, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  Plus,
-  Compass,
-  Sparkles,
-  X
-} from 'lucide-react';
-import { useAuth } from '../features/auth/AuthContext';
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { useAuth } from '../features/auth/AuthContext'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { ChevronRight, User, ShieldCheck, LogOut, ChevronDown, Plus } from 'lucide-react'
+import './Navbar.css'
 
-export const Navbar = ({ 
-  activeCourse, 
-  currentView = 'home', 
-  onSwitchView, 
-  onToggleMobileSidebar 
-}) => {
-  const { currentUser, isAuthenticated, logout, openAuthModal } = useAuth();
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+gsap.registerPlugin(ScrollTrigger)
 
-  // Close dropdown on outside click
+export default function Navbar({ currentView, onSwitchView, onToggleMobileSidebar }) {
+  const { currentUser, isAuthenticated, logout, openAuthModal } = useAuth()
+  const user = currentUser
+  const navigate = useNavigate()
+  const location = useLocation()
+  
+  const [navHidden, setNavHidden] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [portalContainer, setPortalContainer] = useState(null)
+
+  const navRef = useRef(null)
+
+  // Handle page routing navigation
+  const handleNav = (href, viewId) => {
+    setMobileOpen(false)
+    if (onSwitchView && viewId) {
+      onSwitchView(viewId)
+    } else {
+      navigate(href)
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Create Portal target on mount
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setProfileDropdownOpen(false);
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    setPortalContainer(el)
+    return () => {
+      if (document.body.contains(el)) {
+        document.body.removeChild(el)
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const getInitials = (name) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
-  };
+  }, [])
 
-  // Central floating island navigation tabs
-  const navTabs = [
-    { id: 'home', label: 'Home' },
-    { id: 'my-learning', label: 'Courses' },
-    { id: 'flashcards', label: 'Flashcards' },
-    { id: 'cheatsheets', label: 'Cheatsheets' },
-    { id: 'planner', label: 'Planner' },
-    { id: 'progress', label: 'Progress' }
-  ];
+  // Scroll tracking with GSAP + ScrollTrigger
+  useEffect(() => {
+    const trigger = ScrollTrigger.create({
+      start: "top+=50 top",
+      onUpdate: (self) => {
+        // Smart navbar hide on scroll down past 50px, reveal on scroll up or at top
+        if (self.direction === 1 && self.scroll() > 60) {
+          setNavHidden(true)
+        } else if (self.direction === -1 || self.scroll() <= 30) {
+          setNavHidden(false)
+        }
+      }
+    })
 
-  // Map sub-views (like quiz, lessons, roadmap) to 'my-learning'
-  const isTabActive = (tabId) => {
-    if (currentView === tabId) return true;
-    if (tabId === 'my-learning' && ['course-wizard', 'roadmap', 'lessons', 'quiz', 'cheatsheet'].includes(currentView)) {
-      return true;
+    return () => {
+      trigger.kill()
     }
-    return false;
-  };
+  }, [])
+
+  // Entrance slide animation on load
+  useGSAP(() => {
+    gsap.from(navRef.current, {
+      y: -80,
+      opacity: 0,
+      duration: 0.8,
+      ease: 'power3.out'
+    })
+  }, { scope: navRef })
+
+  // PadhAI Navigation Links
+  const navLinks = [
+    { label: 'Home', href: '/', id: 'home' },
+    { label: 'Courses', href: '/my-learning', id: 'my-learning' },
+    { label: 'Flashcards', href: '/flashcards', id: 'flashcards' },
+    { label: 'Cheatsheets', href: '/cheatsheets', id: 'cheatsheets' },
+    { label: 'Planner', href: '/planner', id: 'planner' },
+    { label: 'Progress', href: '/progress', id: 'progress' },
+  ]
+
+  const isLinkActive = (link) => {
+    if (location.pathname === link.href) return true
+    if (link.href === '/my-learning' && ['/course-wizard', '/lessons', '/quiz'].includes(location.pathname)) return true
+    if (currentView && currentView === link.id) return true
+    return false
+  }
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-2xl bg-[#080d1a]/90 border-b border-white/[0.08] w-full transition-all">
-      <div className="w-full px-4 sm:px-6 lg:px-8 h-18 py-2.5 flex items-center justify-between gap-4">
-        
-        {/* Left Section: Mobile Menu + Clean Brand Logo & Name (Hintify style) */}
-        <div className="flex items-center space-x-3 min-w-0 shrink-0">
-          {/* Mobile Menu Button */}
-          <button
-            onClick={onToggleMobileSidebar}
-            aria-label="Open mobile navigation menu"
-            className="md:hidden p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors shrink-0"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          {/* Brand Logo & Name */}
-          <div 
-            onClick={() => onSwitchView && onSwitchView('home')}
-            className="flex items-center space-x-2.5 cursor-pointer group select-none"
-          >
-            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-500/30 bg-gradient-to-br from-white/10 via-cyan-500/10 to-transparent flex items-center justify-center p-1.5 transition-transform group-hover:scale-105">
-              <img 
-                src="/logo.svg" 
-                alt="PadhAI Logo" 
-                className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.4)]" 
-              />
-            </div>
-            <span className="text-xl font-black tracking-tight text-white">
-              Padh<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">AI</span>
-            </span>
+    <>
+      <nav
+        ref={navRef}
+        className={`navbar ${navHidden ? 'hidden' : ''}`}
+      >
+        <div className="nav-container">
+          {/* Left Side: Brand Logo (PadhAI, Clean, No Chip Tags) */}
+          <div className="nav-left">
+            <button onClick={() => handleNav('/', 'home')} className="nav-logo" aria-label="Go to home">
+              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-500/30 bg-gradient-to-br from-white/10 via-cyan-500/10 to-transparent flex items-center justify-center p-1.5 transition-transform hover:scale-105">
+                <img 
+                  src="/logo.svg" 
+                  alt="PadhAI Logo" 
+                  className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.4)]" 
+                />
+              </div>
+              <span className="text-xl font-black tracking-tight text-white select-none">
+                Padh<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">AI</span>
+              </span>
+            </button>
           </div>
-        </div>
 
-        {/* Center: Floating Island Dock / Pill Capsule (Inspired by Hintify) */}
-        <div className="hidden lg:flex items-center justify-center flex-1 max-w-2xl px-2">
-          <nav className="p-1 rounded-full bg-[#0b101d]/90 border border-white/[0.12] shadow-2xl shadow-black/80 backdrop-blur-2xl flex items-center space-x-0.5 ring-1 ring-white/5">
-            {navTabs.map((tab) => {
-              const active = isTabActive(tab.id);
-              return (
+          {/* Center Side: Floating Pill Links Capsule */}
+          <div className="nav-center">
+            <div className="main-links">
+              {navLinks.map((link) => (
                 <button
-                  key={tab.id}
-                  onClick={() => onSwitchView(tab.id)}
-                  className={`relative px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 flex flex-col items-center justify-center select-none ${
-                    active
-                      ? 'bg-white/[0.12] text-white font-bold shadow-inner border border-white/10'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]'
-                  }`}
+                  key={link.label}
+                  onClick={() => handleNav(link.href, link.id)}
+                  className={`nav-link ${isLinkActive(link) ? 'active' : ''}`}
                 >
-                  <span className="tracking-tight">{tab.label}</span>
-                  {/* Glowing Cyan Active Dot */}
-                  {active && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] -mb-1 mt-0.5 animate-pulse" />
-                  )}
+                  <span className="nav-text">{link.label}</span>
                 </button>
-              );
-            })}
-          </nav>
-        </div>
+              ))}
+            </div>
+          </div>
 
-        {/* Right Section: Sign In + Electric Cyan Sign Up / Profile Pill */}
-        <div className="flex items-center space-x-3 shrink-0">
-          {isAuthenticated && currentUser ? (
-            <div className="flex items-center space-x-3">
-              {/* Quick Action Button */}
-              <button
-                onClick={() => onSwitchView('course-wizard')}
-                className="hidden sm:inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-300 hover:from-cyan-300 hover:to-cyan-200 text-slate-950 font-black text-xs shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_28px_rgba(6,182,212,0.55)] hover:scale-105 transition-all min-h-[34px]"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                <span>New Course</span>
-                <ChevronRight className="w-3 h-3 stroke-[3]" />
-              </button>
-
-              {/* User Dropdown Pill */}
-              <div className="relative" ref={dropdownRef}>
+          {/* Right Side: CTAs & Hamburger Toggle */}
+          <div className="nav-right">
+            {!isAuthenticated || !user ? (
+              <>
                 <button
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  aria-label="User profile menu"
-                  className="flex items-center space-x-2.5 p-1.5 pr-3 rounded-full bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] hover:border-cyan-500/30 transition-all text-left shadow-sm min-h-[36px]"
+                  onClick={() => openAuthModal('login')}
+                  className="flex items-center justify-center h-9 px-3.5 rounded-xl text-xs font-semibold text-[#8a8faa] hover:text-white hover:bg-white/[0.04] transition-all whitespace-nowrap cursor-pointer"
                 >
-                  {currentUser.avatar ? (
-                    <img
-                      src={currentUser.avatar}
-                      alt={currentUser.name}
-                      className="w-7 h-7 rounded-full object-cover border border-cyan-400/50 shadow-sm shadow-cyan-500/20 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 text-white font-black text-[11px] flex items-center justify-center shadow-sm shrink-0">
-                      {getInitials(currentUser.name)}
-                    </div>
-                  )}
-                  <span className="hidden sm:inline text-xs font-bold text-white max-w-[100px] truncate">
-                    {currentUser.name ? currentUser.name.split(' ')[0] : 'Account'}
-                  </span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                  Sign In
+                </button>
+                <button
+                  onClick={() => openAuthModal('signup')}
+                  className="group flex items-center justify-center gap-1.5 px-5 h-9 rounded-full bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] text-xs font-black transition-all duration-300 shadow-[0_0_22px_rgba(0,245,255,0.45)] hover:shadow-[0_0_30px_rgba(0,245,255,0.7)] hover:scale-105 whitespace-nowrap cursor-pointer"
+                >
+                  <span>Sign Up</span>
+                  <ChevronRight size={13} strokeWidth={3} className="text-[#020617] group-hover:translate-x-0.5 transition-transform duration-300" />
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                {/* New Course Action Pill */}
+                <button
+                  onClick={() => handleNav('/course-wizard', 'course-wizard')}
+                  className="hidden sm:flex items-center justify-center gap-1.5 px-4 h-9 rounded-full bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] text-xs font-black transition-all duration-300 shadow-[0_0_20px_rgba(0,245,255,0.35)] hover:shadow-[0_0_28px_rgba(0,245,255,0.6)] hover:scale-105 whitespace-nowrap cursor-pointer"
+                >
+                  <Plus size={13} strokeWidth={3} className="text-[#020617]" />
+                  <span>New Course</span>
+                  <ChevronRight size={13} strokeWidth={3} className="text-[#020617]" />
                 </button>
 
-                {/* Dropdown Menu */}
-                {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-2.5 w-64 rounded-2xl p-2 border border-white/[0.1] bg-[#0c1222]/95 backdrop-blur-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2">
-                    <div className="px-3.5 py-3 border-b border-white/[0.08] mb-1.5">
-                      <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{currentUser.email}</p>
+                {/* User Dropdown Pill */}
+                <div className="relative group">
+                  <button className="flex items-center gap-2.5 px-3.5 h-10 rounded-full bg-[#080c14] border border-white/20 hover:bg-[#0e1422] hover:border-white/30 transition-all text-xs font-bold text-white shadow-xl cursor-pointer">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name || 'User'} className="w-6 h-6 rounded-full object-cover border border-cyan-400/50" />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full bg-gradient-to-r from-[#00f5ff] to-[#0284c7] flex items-center justify-center text-[10px] font-black uppercase text-[#020617] shadow-md shrink-0">
+                        {(user.name || user.email || 'U').charAt(0)}
+                      </span>
+                    )}
+                    <span className="font-bold text-white tracking-wide text-xs max-w-[100px] truncate">
+                      {user.name ? user.name.split(' ')[0] : (user.email ? user.email.split('@')[0] : 'Account')}
+                    </span>
+                    <ChevronDown size={13} className="text-white/70 group-hover:text-white transition-transform duration-200 group-hover:rotate-180" />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-[#080c14]/95 backdrop-blur-2xl border border-white/20 shadow-[0_10px_40px_rgba(0,0,0,0.9)] p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
+                    <div className="px-3 py-2.5 border-b border-white/10 mb-1.5 bg-white/[0.03] rounded-xl">
+                      <p className="text-[9px] text-[#8a8faa] font-bold uppercase tracking-wider">Signed in as</p>
+                      <p className="text-xs font-bold text-white truncate mt-0.5">{user.email}</p>
                     </div>
-
                     <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        onSwitchView('progress');
-                      }}
-                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-xl transition-colors"
+                      onClick={() => handleNav('/progress', 'progress')}
+                      className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-xl text-white hover:bg-white/10 text-xs font-bold transition-colors cursor-pointer mb-1"
                     >
-                      <User className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>My Learning Profile</span>
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                        <User size={13} className="text-indigo-400" />
+                      </div>
+                      <span>Learning Profile</span>
                     </button>
-
                     <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        onSwitchView('settings');
-                      }}
-                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/[0.06] rounded-xl transition-colors"
+                      onClick={() => handleNav('/settings', 'settings')}
+                      className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-xl text-cyan-300 hover:bg-cyan-500/10 text-xs font-bold transition-colors cursor-pointer mb-1"
                     >
-                      <Settings className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Settings & API Key</span>
+                      <div className="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                        <ShieldCheck size={13} className="text-cyan-400" />
+                      </div>
+                      <span>Settings & API</span>
                     </button>
-
-                    <div className="my-1 border-t border-white/[0.06]" />
-
                     <button
                       onClick={() => {
-                        setProfileDropdownOpen(false);
-                        logout();
+                        logout()
                       }}
-                      className="w-full flex items-center space-x-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors"
+                      className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 rounded-xl text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 text-xs font-bold transition-colors cursor-pointer"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
+                      <div className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+                        <LogOut size={13} className="text-rose-400" />
+                      </div>
                       <span>Sign Out</span>
                     </button>
                   </div>
-                )}
+                </div>
               </div>
+            )}
+
+            {/* Mobile Hamburger Toggle Button */}
+            <button 
+              className="hamburger-menu" 
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
+            >
+              <span className={`hamburger-line ${mobileOpen ? 'open' : ''}`}></span>
+              <span className={`hamburger-line ${mobileOpen ? 'open' : ''}`}></span>
+              <span className={`hamburger-line ${mobileOpen ? 'open' : ''}`}></span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Fullscreen Mobile Overlay (rendered via portal for clean stacking context) */}
+      {(portalContainer && mobileOpen) && createPortal(
+        <div className="main-links mobile-open" role="menu">
+          {navLinks.map((link, index) => (
+            <button
+              key={link.label}
+              onClick={() => handleNav(link.href, link.id)}
+              style={{ '--i': index }}
+              className={`nav-link ${isLinkActive(link) ? 'active' : ''}`}
+            >
+              <span className="nav-text">{link.label}</span>
+            </button>
+          ))}
+          
+          {/* User Profile / Auth Links for Mobile */}
+          <div className="w-[80%] h-px bg-white/10 my-2"></div>
+          
+          {isAuthenticated && user ? (
+            <div className="flex flex-col items-center w-full gap-5 animate-fade-in-up" style={{ animationDelay: '0.35s' }}>
+              <div className="text-center">
+                <p className="text-[10px] text-[#8a8faa] uppercase tracking-wide">Signed in as</p>
+                <p className="text-sm font-semibold text-white truncate max-w-[250px] mt-1">{user.email}</p>
+              </div>
+              
+              <button
+                onClick={() => handleNav('/course-wizard', 'course-wizard')}
+                className="text-base font-bold text-cyan-300 hover:text-cyan-200 uppercase tracking-wider transition-colors flex items-center gap-2"
+              >
+                <Plus size={16} /> Create Course
+              </button>
+
+              <button
+                onClick={() => handleNav('/progress', 'progress')}
+                className="text-base font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition-colors flex items-center gap-2"
+              >
+                <User size={16} /> Learning Profile
+              </button>
+              
+              <button
+                onClick={() => handleNav('/settings', 'settings')}
+                className="text-base font-bold text-slate-300 hover:text-white uppercase tracking-wider transition-colors flex items-center gap-2"
+              >
+                <ShieldCheck size={16} /> Settings
+              </button>
+              
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  logout()
+                }}
+                className="text-base font-bold text-rose-400 hover:text-rose-300 uppercase tracking-wider transition-colors flex items-center gap-2"
+              >
+                <LogOut size={16} /> Sign Out
+              </button>
             </div>
           ) : (
-            <div className="flex items-center space-x-3">
-              {/* Clean Text Sign In Button */}
+            <div className="flex flex-col items-center w-full gap-5 animate-fade-in-up" style={{ animationDelay: '0.35s' }}>
               <button
-                onClick={() => openAuthModal('login')}
-                className="text-xs font-semibold text-slate-300 hover:text-white transition-colors px-2 py-1.5"
+                onClick={() => {
+                  setMobileOpen(false)
+                  openAuthModal('login')
+                }}
+                className="text-lg font-bold text-white/70 hover:text-white uppercase tracking-wider transition-colors"
               >
                 Sign In
               </button>
-
-              {/* Electric Cyan Rounded Pill Sign Up Button with Chevron (Like Hintify) */}
               <button
-                onClick={() => openAuthModal('signup')}
-                className="px-5 py-2 rounded-full bg-gradient-to-r from-cyan-400 to-cyan-300 hover:from-cyan-300 hover:to-cyan-200 text-slate-950 font-black text-xs shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:shadow-[0_0_28px_rgba(6,182,212,0.6)] hover:scale-105 transition-all flex items-center space-x-1.5 min-h-[36px]"
+                onClick={() => {
+                  setMobileOpen(false)
+                  openAuthModal('signup')
+                }}
+                className="text-lg font-bold text-[#00d4ff] hover:text-[#7dd3fc] uppercase tracking-wider transition-colors"
               >
-                <span>Sign Up</span>
-                <ChevronRight className="w-3.5 h-3.5 stroke-[3]" />
+                Sign Up
               </button>
             </div>
           )}
-        </div>
-      </div>
-    </header>
-  );
-};
-
-export default Navbar;
+        </div>,
+        portalContainer
+      )}
+    </>
+  )
+}
