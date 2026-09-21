@@ -76,18 +76,50 @@ export function App() {
   const [savedTopics, setSavedTopics] = useState([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Production Clean-Slate: No fake mock courses. Start null until real course is selected/created.
-  const [activeCourse, setActiveCourse] = useState(null);
-  const [selectedLessonCoordinates, setSelectedLessonCoordinates] = useState({ modIdx: 0, lessIdx: 0 });
+  // Multi-Page State Persistence across Refresh & Deep Linking
+  const [activeCourse, setActiveCourseState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('padhai_active_course');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  // Map route pathname to sidebar ID
+  const setActiveCourse = (course) => {
+    setActiveCourseState(course);
+    if (course) {
+      localStorage.setItem('padhai_active_course', JSON.stringify(course));
+    } else {
+      localStorage.removeItem('padhai_active_course');
+    }
+  };
+
+  const [selectedLessonCoordinates, setSelectedLessonCoordinatesState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('padhai_lesson_coords');
+      return saved ? JSON.parse(saved) : { modIdx: 0, lessIdx: 0 };
+    } catch {
+      return { modIdx: 0, lessIdx: 0 };
+    }
+  });
+
+  const setSelectedLessonCoordinates = (coords) => {
+    setSelectedLessonCoordinatesState(coords);
+    localStorage.setItem('padhai_lesson_coords', JSON.stringify(coords));
+  };
+
+  // Map route pathname to sidebar / breadcrumb ID
   const getCurrentViewId = () => {
     const path = location.pathname;
     if (path === '/') return 'home';
     if (path.startsWith('/learn')) return 'quick-learn';
-    if (path === '/course-wizard') return 'my-learning';
+    if (path === '/course-wizard') return 'course-wizard';
     if (path === '/my-learning') return 'my-learning';
-    if (path === '/lessons') return 'my-learning';
+    if (path === '/lessons') return 'lessons';
+    if (path === '/quiz') return 'quiz';
+    if (path === '/flashcards') return 'flashcards';
+    if (path === '/cheatsheets') return 'cheatsheets';
     if (path === '/planner') return 'planner';
     if (path === '/upload-material' || path === '/study-notes') return 'upload-material';
     if (path === '/ai-tutor') return 'ai-tutor';
@@ -95,6 +127,41 @@ export function App() {
     if (path === '/settings') return 'settings';
     return 'home';
   };
+
+  // Multi-page Dynamic Browser Tab Title Sync
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/') {
+      document.title = 'PadhAI • AI Learning Platform';
+    } else if (path.startsWith('/learn/')) {
+      const topicName = decodeURIComponent(path.replace('/learn/', ''));
+      document.title = `PadhAI • Learn: ${topicName}`;
+    } else if (path === '/my-learning') {
+      document.title = activeCourse ? `PadhAI • ${activeCourse.title}` : 'PadhAI • My Courses';
+    } else if (path === '/course-wizard') {
+      document.title = 'PadhAI • Create AI Course';
+    } else if (path === '/lessons') {
+      document.title = 'PadhAI • Interactive Lesson Viewer';
+    } else if (path === '/quiz') {
+      document.title = 'PadhAI • Knowledge Check & Quiz';
+    } else if (path === '/flashcards') {
+      document.title = 'PadhAI • AI Flashcard Decks';
+    } else if (path === '/cheatsheets') {
+      document.title = 'PadhAI • Quick Revision Cheatsheets';
+    } else if (path === '/upload-material' || path === '/study-notes') {
+      document.title = 'PadhAI • Study Material Analyzer';
+    } else if (path === '/planner') {
+      document.title = 'PadhAI • Personalized Study Planner';
+    } else if (path === '/progress') {
+      document.title = 'PadhAI • Progress & Mastery Analytics';
+    } else if (path === '/settings') {
+      document.title = 'PadhAI • Account & API Settings';
+    } else if (path === '/ai-tutor') {
+      document.title = 'PadhAI • 24/7 AI Tutor';
+    } else {
+      document.title = 'PadhAI • AI-Powered Learning';
+    }
+  }, [location.pathname, activeCourse?.title]);
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -113,7 +180,6 @@ export function App() {
     if (!isAuthenticated) {
       setSavedCourses([]);
       setSavedTopics([]);
-      setActiveCourse(null);
       return;
     }
 
@@ -177,6 +243,21 @@ export function App() {
         break;
       case 'my-learning':
         navigate(activeCourse ? '/my-learning' : '/course-wizard');
+        break;
+      case 'course-wizard':
+        navigate('/course-wizard');
+        break;
+      case 'lessons':
+        navigate('/lessons');
+        break;
+      case 'quiz':
+        navigate('/quiz');
+        break;
+      case 'flashcards':
+        navigate('/flashcards');
+        break;
+      case 'cheatsheets':
+        navigate('/cheatsheets');
         break;
       case 'planner':
         navigate('/planner');
@@ -361,7 +442,39 @@ export function App() {
               }
             />
 
-            {/* 7. Progress Dashboard (Protected) */}
+            {/* 7. Flashcards Page (Protected) */}
+            <Route
+              path="/flashcards"
+              element={
+                <ProtectedRoute>
+                  <FlashcardDeck
+                    courseTopic={activeCourse?.topic || 'Computer Science & DSA'}
+                    lessonTitle={activeCourse?.title || 'Key Algorithms & Data Structures'}
+                    currentLevel={activeCourse?.level || 'Beginner'}
+                    courseId={activeCourse?._id || activeCourse?.id}
+                    onBack={() => navigate('/my-learning')}
+                  />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 8. Cheatsheets Page (Protected) */}
+            <Route
+              path="/cheatsheets"
+              element={
+                <ProtectedRoute>
+                  <CheatsheetViewer
+                    courseTopic={activeCourse?.topic || 'Computer Science & DSA'}
+                    lessonTitle={activeCourse?.title || 'Comprehensive Quick Revision Guide'}
+                    currentLevel={activeCourse?.level || 'Beginner'}
+                    courseId={activeCourse?._id || activeCourse?.id}
+                    onBack={() => navigate('/my-learning')}
+                  />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 9. Progress Dashboard (Protected) */}
             <Route
               path="/progress"
               element={

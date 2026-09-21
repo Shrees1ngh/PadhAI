@@ -31,6 +31,43 @@ const cheatsheetSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    unitNumber: {
+      type: String,
+      default: "UNIT REVISION",
+    },
+    topicDomain: {
+      type: String,
+      default: "general",
+    },
+    cards: [
+      {
+        number: { type: mongoose.Schema.Types.Mixed, default: 1 },
+        title: { type: String, default: "" },
+        definition: { type: String, default: "" },
+        bulletPoints: [{ type: String }],
+        formula: { type: String, default: "" },
+        codeSnippet: { type: String, default: "" },
+        codeLanguage: { type: String, default: "" },
+        example: { type: String, default: "" },
+        visualDiagram: { type: String, default: "" },
+        examTip: { type: String, default: "" },
+        categoryType: { type: String, default: "Concept" },
+        badgeColor: { type: String, default: "indigo" },
+      },
+    ],
+    comparisonTable: {
+      title: { type: String, default: "" },
+      headers: [{ type: String }],
+      rows: [
+        {
+          type: { type: String, default: "" },
+          definition: { type: String, default: "" },
+          example: { type: String, default: "" },
+          use: { type: String, default: "" },
+          badgeColor: { type: String, default: "indigo" },
+        },
+      ],
+    },
     keyConcepts: [
       {
         concept: { type: String, default: "" },
@@ -81,6 +118,15 @@ const cheatsheetSchema = new mongoose.Schema(
         type: String,
       },
     ],
+    examPoints: [
+      {
+        type: String,
+      },
+    ],
+    topperTip: {
+      type: String,
+      default: "",
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

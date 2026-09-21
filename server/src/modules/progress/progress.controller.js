@@ -236,69 +236,86 @@ export const getEnrolledCourses = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const progressRecords = await UserProgress.find({ userId })
-      .sort({ updatedAt: -1 })
-      .lean();
+    // 1. Fetch all courses owned by or created by this user
+    const userCourses = await Course.find({ userId }).sort({ updatedAt: -1 }).lean();
 
-    if (!progressRecords.length) {
-      return res.json({
-        success: true,
-        data: {
-          courses: [],
-          totalLessonsCompleted: 0,
-          totalQuestionsAnswered: 0,
-          overallStreak: { current: 0, lastActiveDate: null },
-        },
-      });
+    // 2. Fetch all progress records for this user
+    const progressRecords = await UserProgress.find({ userId }).lean();
+    const progressMap = {};
+    for (const p of progressRecords) {
+      progressMap[p.courseId.toString()] = p;
     }
 
-    // Gather all courseIds
-    const courseIds = progressRecords.map((p) => p.courseId);
-    const courses = await Course.find({ _id: { $in: courseIds } }).lean();
-    const courseMap = {};
-    for (const c of courses) {
-      courseMap[c._id.toString()] = c;
+    // 3. Fetch all quizzes attempted by this user for topic strengths/weaknesses
+    const userQuizzes = await Quiz.find({ userId }).lean();
+    let totalQuestionsAnswered = 0;
+    const strongTopicsSet = new Set();
+    const weakTopicsSet = new Set();
+
+    for (const q of userQuizzes) {
+      if (q.bestScore >= 75) {
+        if (q.lessonTitle) strongTopicsSet.add(q.lessonTitle);
+      } else if (q.attempts?.length > 0) {
+        if (q.lessonTitle) weakTopicsSet.add(q.lessonTitle);
+      }
+      for (const att of q.attempts || []) {
+        totalQuestionsAnswered += att.answers?.length || att.totalQuestions || 0;
+        for (const wk of att.weakConcepts || []) {
+          weakTopicsSet.add(wk);
+        }
+      }
     }
 
     let totalLessonsCompleted = 0;
-    let totalQuestionsAnswered = 0;
+    let totalLessonsInAllCourses = 0;
     let bestStreak = { current: 0, lastActiveDate: null };
 
-    const courseSummaries = progressRecords.map((p) => {
-      const course = courseMap[p.courseId.toString()];
+    // Combine courses with their progress
+    const courseSummaries = userCourses.map((course) => {
+      const courseIdStr = course._id.toString();
+      const p = progressMap[courseIdStr];
+
       let totalLessons = 0;
       if (course && course.modules) {
         totalLessons = course.modules.reduce(
           (sum, mod) => sum + (mod.lessons?.length || 0),
           0
         );
+      } else if (course && course.days) {
+        totalLessons = course.days.reduce(
+          (sum, day) => sum + (day.lessons?.length || 0),
+          0
+        );
       }
 
-      const completed = p.completedLessons?.length || 0;
+      totalLessonsInAllCourses += totalLessons;
+      const completed = p?.completedLessons?.length || 0;
       totalLessonsCompleted += completed;
-      totalQuestionsAnswered += p.questionsAnswered || 0;
 
-      if (
-        p.streak?.current > bestStreak.current ||
-        (p.streak?.current === bestStreak.current &&
-          p.streak?.lastActiveDate > bestStreak.lastActiveDate)
-      ) {
-        bestStreak = p.streak;
+      if (p?.streak) {
+        if (
+          p.streak.current > bestStreak.current ||
+          (p.streak.current === bestStreak.current &&
+            p.streak.lastActiveDate > bestStreak.lastActiveDate)
+        ) {
+          bestStreak = p.streak;
+        }
       }
 
       return {
-        courseId: p.courseId,
-        courseTitle: course?.title || "Unknown Course",
-        courseTopic: course?.setupParams?.topic || "",
+        courseId: course._id,
+        courseTitle: course.title || course.topic || "Untitled Course",
+        courseTopic: course.setupParams?.topic || course.title || "",
+        category: course.category || course.setupParams?.category || "General",
         completedLessons: completed,
         totalLessons,
         completionPercentage:
           totalLessons > 0 ? Math.round((completed / totalLessons) * 100) : 0,
-        quizAttemptsCount: p.quizAttemptsCount || 0,
-        questionsAnswered: p.questionsAnswered || 0,
-        streak: p.streak,
-        enrolledAt: p.enrolledAt,
-        lastUpdated: p.updatedAt,
+        quizAttemptsCount: p?.quizAttemptsCount || 0,
+        questionsAnswered: p?.questionsAnswered || 0,
+        streak: p?.streak || { current: 0, lastActiveDate: null },
+        enrolledAt: p?.enrolledAt || course.createdAt,
+        lastUpdated: p?.updatedAt || course.updatedAt,
       };
     });
 
@@ -306,8 +323,12 @@ export const getEnrolledCourses = async (req, res) => {
       success: true,
       data: {
         courses: courseSummaries,
+        totalCourses: courseSummaries.length,
         totalLessonsCompleted,
+        totalLessonsInAllCourses,
         totalQuestionsAnswered,
+        strongTopics: Array.from(strongTopicsSet).slice(0, 6),
+        weakTopics: Array.from(weakTopicsSet).slice(0, 6),
         overallStreak: bestStreak,
       },
     });

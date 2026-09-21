@@ -10,76 +10,91 @@ import {
   ArrowLeft,
   RefreshCw,
   Edit3,
-  Save,
   AlertCircle,
-  Database,
   Check,
   ChevronDown,
-  Info,
   Calendar,
   Target,
   GraduationCap,
-  Play
+  Play,
+  Video,
+  Zap,
+  Globe,
+  Compass
 } from 'lucide-react';
 import { generateCourseOutline, modifyCourseOutline, saveCourse } from '../../services/api';
 
-const LEVEL_OPTIONS = ['Beginner', 'Intermediate', 'Advanced'];
+const UNIVERSAL_INSPIRATION_CHIPS = [
+  'Data Structures & Algorithms',
+  'Quantum Physics & Mechanics',
+  'World History (1900 - Present)',
+  'Full-Stack React & Node.js',
+  'Organic Chemistry & Reaction Mechanisms',
+  'Macroeconomics & Financial Markets',
+  'Deep Learning & Neural Networks',
+  'UPSC Indian Polity & Constitution',
+  'Spanish Language for Beginners',
+  'Linear Algebra & Calculus',
+  'System Design for Scale',
+  'Human Anatomy & Physiology',
+];
+
+const LEVEL_OPTIONS = [
+  { id: 'Beginner', label: 'Beginner', desc: 'No prior background required' },
+  { id: 'Intermediate', label: 'Intermediate', desc: 'Familiar with core basics' },
+  { id: 'Advanced', label: 'Advanced', desc: 'Deep dive, rigor & edge cases' },
+];
 
 const GOAL_OPTIONS = [
-  'Placement / Job Preparation',
-  'College / University Exams',
-  'Competitive Coding Mastery',
-  'Career Transition / Upskilling',
-  'Deep Conceptual Foundations',
+  'Academic / University Coursework',
+  'Competitive Exam & Entrance Prep',
+  'Job / Tech Interview Mastery',
+  'Self-Directed Intellectual Curiosity',
+  'Practical Project Building & Upskilling',
 ];
 
 const DURATION_OPTIONS = [
-  { value: 7, label: '7 days (Express Crash Course)' },
-  { value: 10, label: '10 days (Fast Track)' },
-  { value: 14, label: '14 days (2 Weeks)' },
-  { value: 30, label: '30 days (1 Month In-Depth)' },
-  { value: 60, label: '60 days (2 Months Comprehensive)' },
-  { value: 90, label: '90 days (Quarterly Mastery)' },
+  { value: 7, label: '7 Days', tag: 'Crash Sprint' },
+  { value: 14, label: '14 Days', tag: 'Fast Track' },
+  { value: 30, label: '30 Days', tag: 'Full Mastery' },
+  { value: 60, label: '60 Days', tag: 'Deep Dive' },
+  { value: 90, label: '90 Days', tag: 'Specialization' },
 ];
 
-const DAILY_TIME_OPTIONS = [
-  '1 hour',
-  '2 hours',
-  '3 hours',
-  '4+ hours',
-];
+const DAILY_TIME_OPTIONS = ['1 hour', '2 hours', '3 hours', '4+ hours'];
 
 const PREFERENCE_PILLS = [
-  { id: 'video', label: 'Video learning' },
-  { id: 'hands-on', label: 'Hands-on practice' },
-  { id: 'detailed', label: 'Detailed explanation' },
-  { id: 'concise', label: 'Short & concise' },
+  { id: 'hands-on', label: 'Hands-on Practice & Problems' },
+  { id: 'detailed', label: 'Deep Conceptual Intuition' },
+  { id: 'exam', label: 'Exam & High-Yield Focus' },
+  { id: 'concise', label: 'Concise & Structured Notes' },
 ];
 
 export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
-  // Stepper state: 1 = Setup (Screen 2), 2 = Review Outline
+  // Wizard steps: 1 = Direct Input, 2 = AI Architecture Review
   const [step, setStep] = useState(1);
 
   // Form State
   const [formData, setFormData] = useState({
-    topic: 'Data Structures and Algorithms',
-    learningGoal: 'Placement / Job Preparation',
+    topic: 'Data Structures & Algorithms',
+    learningGoal: 'Academic / University Coursework',
     currentLevel: 'Beginner',
     durationDays: 30,
     dailyStudyTime: '2 hours',
-    learningPreferences: ['video', 'hands-on', 'detailed'],
+    includeVideos: true,
+    includeVisualizers: true,
+    learningPreferences: ['hands-on', 'detailed'],
   });
 
   const [outline, setOutline] = useState(null);
   const [modificationPrompt, setModificationPrompt] = useState('');
-  const [activeModuleIndex, setActiveModuleIndex] = useState(0);
+  const [activeModuleIndex, setActiveModuleIndex] = useState(-1); // -1 = Day plan, >= 0 = Modules
 
-  // Status
+  // Loading & statuses
   const [loading, setLoading] = useState(false);
   const [modifying, setModifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [saveResult, setSaveResult] = useState(null);
 
   const togglePreference = (prefId) => {
     setFormData((prev) => {
@@ -93,9 +108,9 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
     });
   };
 
-  // Generate Course Outline
+  // Generate Course Outline using real Gemini
   const handleGenerateOutline = async (e) => {
-    e?.preventDefault();
+    if (e) e.preventDefault();
     if (!formData.topic.trim()) {
       setError('Please enter what you want to learn.');
       return;
@@ -106,10 +121,12 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
 
     const payload = {
       topic: formData.topic.trim(),
+      category: 'Universal Learning',
       learningGoal: formData.learningGoal,
       currentLevel: formData.currentLevel,
       durationDays: Number(formData.durationDays),
       dailyStudyTime: formData.dailyStudyTime,
+      includeVideos: formData.includeVideos,
       learningPreference: formData.learningPreferences.join(', '),
     };
 
@@ -119,11 +136,11 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
         setOutline(res.outline);
         setStep(2);
       } else {
-        throw new Error(res?.message || 'Failed to generate course structure.');
+        throw new Error(res?.message || 'Failed to generate course structure with Gemini.');
       }
     } catch (err) {
       console.error('Course generation error:', err);
-      setError(err.message || 'Error communicating with AI service. Please check your network or try again.');
+      setError(err.message || 'Error communicating with AI service. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -131,7 +148,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
 
   // Modify outline with natural language prompt
   const handleModifyOutline = async (e) => {
-    e?.preventDefault();
+    if (e) e.preventDefault();
     if (!modificationPrompt.trim() || !outline) return;
 
     setModifying(true);
@@ -143,6 +160,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
       currentLevel: formData.currentLevel,
       durationDays: Number(formData.durationDays),
       dailyStudyTime: formData.dailyStudyTime,
+      includeVideos: formData.includeVideos,
       learningPreference: formData.learningPreferences.join(', '),
     };
 
@@ -167,8 +185,8 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
     }
   };
 
-  // Save Course to MongoDB
-  const handleSaveCourse = async () => {
+  // Save and launch course
+  const handleStartCourse = async () => {
     if (!outline) return;
 
     setSaving(true);
@@ -180,6 +198,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
       currentLevel: formData.currentLevel,
       durationDays: Number(formData.durationDays),
       dailyStudyTime: formData.dailyStudyTime,
+      includeVideos: formData.includeVideos,
       learningPreference: formData.learningPreferences.join(', '),
     };
 
@@ -188,234 +207,295 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
         outline,
         setupParams,
       });
+
       if (res?.success && res.course) {
-        setSaveResult({
-          saved: true,
-          courseId: res.course._id || res.course.id,
-        });
         if (onCourseSaved) onCourseSaved(res.course);
+        if (onStartLearning) onStartLearning(res.course, formData);
       } else {
-        throw new Error(res?.message || 'Could not save to database.');
+        if (onStartLearning) onStartLearning(outline, formData);
       }
     } catch (err) {
-      console.warn('Save course notice:', err);
-      setSaveResult({ saved: false, message: err.message });
-      setError(err.message || 'Failed to save course.');
+      console.warn('Save notice on launch:', err.message);
+      if (onStartLearning) onStartLearning(outline, formData);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-4xl mx-auto space-y-6">
+      
+      {/* Error display */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3"
+        >
+          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-bold">System Notice: </span>
+            {error}
+          </div>
+        </motion.div>
+      )}
+
       <AnimatePresence mode="wait">
-        
+
         {/* ======================================================== */}
-        {/* SCREEN 2: CREATE LEARNING PLAN */}
+        {/* STEP 1: UNIVERSAL COURSE GENERATOR */}
         {/* ======================================================== */}
         {step === 1 && (
           <motion.div
-            key="create-plan"
-            initial={{ opacity: 0, y: 10 }}
+            key="step-form"
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="max-w-4xl mx-auto"
+            exit={{ opacity: 0, y: -12 }}
+            className="rounded-3xl p-6 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl space-y-7"
           >
-            {/* Form Container */}
-            <div className="rounded-3xl p-6 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl relative overflow-hidden">
-              
-              {/* Header */}
-              <div className="mb-8">
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                  Create Your Learning Plan
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1.5 font-normal">
-                  Tell us about your goals and let AI create a personalized course just for you.
-                </p>
+            {/* Header */}
+            <div>
+              <div className="flex items-center space-x-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
+                <Sparkles className="w-4 h-4" />
+                <span>AI Course Studio</span>
               </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                What do you want to learn?
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                Enter any subject across science, humanities, engineering, business, languages, or competitive exams.
+              </p>
+            </div>
 
-              {/* Error display */}
-              {error && (
-                <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-3">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Notice: </span>
-                    {error}
+            <form onSubmit={handleGenerateOutline} className="space-y-6">
+              
+              {/* 1. What do you want to learn? */}
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  required
+                  value={formData.topic}
+                  onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                  placeholder="e.g. Quantum Computing, World History, React & Node, Organic Chemistry, French..."
+                  className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-5 py-4 text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
+                />
+
+                {/* Diverse universal inspiration chips */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-slate-400">Popular topics to explore:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {UNIVERSAL_INSPIRATION_CHIPS.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, topic: item })}
+                        className={`text-xs px-3 py-1.5 rounded-xl border transition-all ${
+                          formData.topic === item
+                            ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/60 font-bold'
+                            : 'bg-[#080c14] text-slate-400 border-white/5 hover:border-white/20 hover:text-white'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
+              </div>
 
-              <form onSubmit={handleGenerateOutline} className="space-y-6">
+              {/* 2. Your Current Level */}
+              <div className="space-y-2.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  Your Current Level
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {LEVEL_OPTIONS.map((lvl) => {
+                    const isSelected = formData.currentLevel === lvl.id;
+                    return (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, currentLevel: lvl.id })}
+                        className={`p-3.5 rounded-2xl text-left border transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md shadow-indigo-600/20 ring-1 ring-indigo-500/40'
+                            : 'bg-[#080c14] border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/15'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
+                            {lvl.label}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                        </div>
+                        <span className="text-[11px] text-slate-400 block">{lvl.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 3. Goal & Duration Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
-                {/* 1. What do you want to learn? */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-2">
-                    What do you want to learn?
+                {/* Learning Goal */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Primary Goal / Outcome
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.topic}
-                    onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                    placeholder="e.g. Data Structures and Algorithms, React & Node.js, Quantum Computing"
-                    className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
-                  />
+                  <div className="relative">
+                    <select
+                      value={formData.learningGoal}
+                      onChange={(e) => setFormData({ ...formData, learningGoal: e.target.value })}
+                      className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none pr-10 cursor-pointer"
+                    >
+                      {GOAL_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt} className="bg-[#0b0f19] text-white">
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
-                {/* 2. Your current level */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-2">
-                    Your current level
+                {/* Duration */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Target Timeline
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {LEVEL_OPTIONS.map((lvl) => {
-                      const isSelected = formData.currentLevel === lvl;
+                  <div className="relative">
+                    <select
+                      value={formData.durationDays}
+                      onChange={(e) => setFormData({ ...formData, durationDays: Number(e.target.value) })}
+                      className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none pr-10 cursor-pointer"
+                    >
+                      {DURATION_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value} className="bg-[#0b0f19] text-white">
+                          {opt.label} ({opt.tag})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 4. Daily Pace & Options */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Daily Commitment */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Daily Study Time
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {DAILY_TIME_OPTIONS.map((time) => {
+                      const isSelected = formData.dailyStudyTime === time;
                       return (
                         <button
-                          key={lvl}
+                          key={time}
                           type="button"
-                          onClick={() => setFormData({ ...formData, currentLevel: lvl })}
-                          className={`py-3 px-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center space-x-2 border ${
+                          onClick={() => setFormData({ ...formData, dailyStudyTime: time })}
+                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all ${
                             isSelected
-                              ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/50 shadow-md shadow-indigo-600/20'
-                              : 'bg-[#080c14] text-slate-400 border-white/5 hover:border-white/15 hover:text-white'
+                              ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
+                              : 'bg-[#080c14] border-white/5 text-slate-400 hover:text-white'
                           }`}
                         >
-                          <div className={`w-3.5 h-3.5 rounded-md border flex items-center justify-center ${
-                            isSelected ? 'bg-indigo-500 border-indigo-400 text-white' : 'border-slate-400'
-                          }`}>
-                            {isSelected && <Check className="w-2.5 h-2.5" />}
-                          </div>
-                          <span>{lvl}</span>
+                          {time}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* 3. Row: Goal & Duration */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                  {/* Your Goal */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-2">
-                      Your goal
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.learningGoal}
-                        onChange={(e) => setFormData({ ...formData, learningGoal: e.target.value })}
-                        className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none pr-10 cursor-pointer"
-                      >
-                        {GOAL_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt} className="bg-[#0b0f19] text-white">
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
+                {/* Multimodal Switches */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Integrated Tools
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, includeVideos: !formData.includeVideos })}
+                      className={`p-2.5 rounded-xl border text-left transition-all flex items-center space-x-2 ${
+                        formData.includeVideos
+                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                          : 'bg-[#080c14] border-white/5 text-slate-500'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-xs font-bold truncate">YouTube Videos</span>
+                    </button>
 
-                  {/* How much time do you have? */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-2">
-                      How much time do you have?
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.durationDays}
-                        onChange={(e) => setFormData({ ...formData, durationDays: Number(e.target.value) })}
-                        className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none pr-10 cursor-pointer"
-                      >
-                        {DURATION_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value} className="bg-[#0b0f19] text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, includeVisualizers: !formData.includeVisualizers })}
+                      className={`p-2.5 rounded-xl border text-left transition-all flex items-center space-x-2 ${
+                        formData.includeVisualizers
+                          ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
+                          : 'bg-[#080c14] border-white/5 text-slate-500'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-xs font-bold truncate">Visualizers</span>
+                    </button>
                   </div>
-
                 </div>
 
-                {/* 4. Row: Daily Study Time & Preferences */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                  {/* Daily Study Time */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-2">
-                      Daily study time
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.dailyStudyTime}
-                        onChange={(e) => setFormData({ ...formData, dailyStudyTime: e.target.value })}
-                        className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3.5 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none pr-10 cursor-pointer"
+              </div>
+
+              {/* 5. Pedagogical Style Pills */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300">
+                  Pedagogical Focus
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {PREFERENCE_PILLS.map((pref) => {
+                    const isChecked = formData.learningPreferences.includes(pref.id);
+                    return (
+                      <button
+                        key={pref.id}
+                        type="button"
+                        onClick={() => togglePreference(pref.id)}
+                        className={`px-3 py-2 rounded-xl text-[11px] font-bold border text-left transition-all flex items-center space-x-2 ${
+                          isChecked
+                            ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
+                            : 'bg-[#080c14] border-white/5 text-slate-400 hover:text-slate-200'
+                        }`}
                       >
-                        {DAILY_TIME_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt} className="bg-[#0b0f19] text-white">
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Learning Preferences */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-2">
-                      Learning preference (optional)
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {PREFERENCE_PILLS.map((pref) => {
-                        const isChecked = formData.learningPreferences.includes(pref.id);
-                        return (
-                          <button
-                            key={pref.id}
-                            type="button"
-                            onClick={() => togglePreference(pref.id)}
-                            className={`px-3 py-2 rounded-xl text-[11px] font-bold border text-left transition-all flex items-center space-x-2 ${
-                              isChecked
-                                ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
-                                : 'bg-[#080c14] border-white/5 text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            <span className={`w-2 h-2 rounded-full ${isChecked ? 'bg-indigo-400' : 'bg-slate-400'}`} />
-                            <span className="truncate">{pref.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
+                        <span className={`w-2 h-2 rounded-full ${isChecked ? 'bg-indigo-400' : 'bg-slate-500'}`} />
+                        <span className="truncate">{pref.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
-                {/* Primary CTA: Generate My Course -> */}
-                <div className="pt-4">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-4 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-[0.99]"
-                  >
-                    {loading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                        <span>Designing Pedagogical Plan with AI...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Generate My Course</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
+              {/* Submit CTA */}
+              <div className="pt-3">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-[0.99]"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Generating Pedagogical Plan with Gemini...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Generate My Course</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
 
-              </form>
-            </div>
+            </form>
           </motion.div>
         )}
 
@@ -424,20 +504,24 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
         {/* ======================================================== */}
         {step === 2 && outline && (
           <motion.div
-            key="review-outline"
-            initial={{ opacity: 0, y: 10 }}
+            key="step-review"
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="max-w-4xl mx-auto space-y-6"
+            exit={{ opacity: 0, y: -12 }}
+            className="space-y-6"
           >
-            {/* Header / Actions */}
-            <div className="rounded-3xl p-6 bg-[#0d1322] border border-white/10 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
+            {/* Header / Actions Card */}
+            <div className="rounded-3xl p-6 sm:p-8 bg-[#0d1322] border border-white/10 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                   {formData.currentLevel} • {formData.durationDays} Days • {formData.dailyStudyTime}/day
                 </span>
-                <h2 className="text-2xl font-black text-white mt-2">{outline.title || formData.topic}</h2>
-                <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">{outline.overview}</p>
+                <h2 className="text-2xl font-black text-white tracking-tight">
+                  {outline.title || formData.topic}
+                </h2>
+                <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                  {outline.description || outline.overview || `Structured ${formData.durationDays}-day course designed for ${formData.currentLevel} learners.`}
+                </p>
               </div>
 
               <div className="flex items-center space-x-3 shrink-0">
@@ -446,48 +530,14 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                   onClick={() => setStep(1)}
                   className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 transition-all"
                 >
-                  Edit Inputs
+                  Adjust Inputs
                 </button>
 
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={async () => {
-                    setSaving(true);
-                    setError(null);
-                    try {
-                      const setupParams = {
-                        topic: formData.topic.trim(),
-                        learningGoal: formData.learningGoal,
-                        currentLevel: formData.currentLevel,
-                        durationDays: Number(formData.durationDays),
-                        dailyStudyTime: formData.dailyStudyTime,
-                        learningPreference: formData.learningPreferences.join(', '),
-                      };
-                      const res = await saveCourse({
-                        outline,
-                        setupParams,
-                      });
-                      if (res?.success && res.course) {
-                        setSaveResult({
-                          saved: true,
-                          courseId: res.course._id || res.course.id,
-                        });
-                        if (onCourseSaved) onCourseSaved(res.course);
-                        if (onStartLearning) onStartLearning(res.course, formData);
-                      } else {
-                        // Fallback to local outline if network error
-                        if (onStartLearning) onStartLearning(outline, formData);
-                      }
-                    } catch (err) {
-                      console.warn('Save on start error:', err);
-                      // Still allow learning even if save fails, but notify
-                      if (onStartLearning) onStartLearning(outline, formData);
-                    } finally {
-                      setSaving(false);
-                    }
-                  }}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-xs font-black text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2 disabled:opacity-50"
+                  onClick={handleStartCourse}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-xs sm:text-sm font-black text-white shadow-xl shadow-indigo-600/30 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-[0.99]"
                 >
                   {saving ? (
                     <>
@@ -504,7 +554,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
               </div>
             </div>
 
-            {/* View Switcher: Day Plan vs Modules */}
+            {/* View Switcher: Day-Wise vs Module Chapters */}
             <div className="flex items-center space-x-3 border-b border-white/5 pb-2">
               <button
                 type="button"
@@ -516,7 +566,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Day-Wise Plan ({outline.days?.length || outline.durationDays || formData.durationDays} Days)</span>
+                <span>Day-Wise Plan ({outline.days?.length || formData.durationDays} Days)</span>
               </button>
 
               <button
@@ -529,24 +579,24 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Modules ({outline.modules?.length || 0})</span>
+                <span>Modules & Chapters ({outline.modules?.length || 0})</span>
               </button>
             </div>
 
             {/* Day Plan Preview */}
             {(activeModuleIndex === -1 || !outline.modules?.length) && (
-              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                 {(outline.days && outline.days.length > 0 ? outline.days : []).map((dayItem, dIdx) => (
-                  <div key={dIdx} className="rounded-2xl p-4 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
+                  <div key={dIdx} className="rounded-2xl p-4 sm:p-5 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-3 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30 shrink-0">
+                        <div className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30 shrink-0">
                           {dayItem.day || dIdx + 1}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate">{dayItem.title}</h4>
-                          {dayItem.moduleTitle && (
-                            <span className="text-[10px] text-slate-400">{dayItem.moduleTitle}</span>
+                          <h4 className="text-xs sm:text-sm font-bold text-white truncate">{dayItem.title}</h4>
+                          {dayItem.learningObjective && (
+                            <span className="text-[10px] text-slate-400 truncate block">{dayItem.learningObjective}</span>
                           )}
                         </div>
                       </div>
@@ -555,9 +605,9 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                       {dayItem.lessons?.map((les, lIdx) => (
-                        <div key={lIdx} className="p-2 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
+                        <div key={lIdx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
                           <span className="truncate">{les.title}</span>
                         </div>
@@ -570,12 +620,12 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
 
             {/* Modules Scaffolding Preview */}
             {activeModuleIndex >= 0 && outline.modules?.length > 0 && (
-              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1">
                 {outline.modules.map((mod, mIdx) => (
                   <div key={mIdx} className="rounded-2xl p-5 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30">
+                        <div className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30">
                           {mIdx + 1}
                         </div>
                         <h4 className="text-sm font-bold text-white">{mod.title}</h4>
@@ -588,7 +638,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
                       {mod.lessons?.map((les, lIdx) => (
                         <div key={lIdx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
                           <span className="truncate">{les.title}</span>
                         </div>
                       ))}
@@ -598,23 +648,23 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
               </div>
             )}
 
-            {/* Natural language modifier bar */}
-            <div className="rounded-2xl p-4 bg-[#0b0f19] border border-white/10 flex items-center gap-3">
+            {/* Natural language AI modifier bar */}
+            <div className="rounded-2xl p-4 bg-[#0b0f19] border border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <input
                 type="text"
                 value={modificationPrompt}
                 onChange={(e) => setModificationPrompt(e.target.value)}
-                placeholder="Want changes? e.g., 'Make Day 5 easier' or 'Add more SQL practice'..."
-                className="flex-1 bg-[#080c14] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                placeholder="Tweak curriculum? e.g., 'Add more practice on Day 4' or 'Make it deeper'..."
+                className="flex-1 bg-[#080c14] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
               <button
                 type="button"
                 onClick={handleModifyOutline}
                 disabled={modifying || !modificationPrompt.trim()}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-all shrink-0 flex items-center space-x-2"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition-all shrink-0 flex items-center justify-center space-x-2 min-h-[40px]"
               >
                 {modifying ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Edit3 className="w-3.5 h-3.5" />}
-                <span>Update Course</span>
+                <span>Refine with AI</span>
               </button>
             </div>
 

@@ -74,9 +74,44 @@ export const cheatsheetMistakeSchema = z.union([
   })),
 ]);
 
+export const cheatsheetCardSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  number: z.union([z.number(), z.string()]).default(1),
+  title: z.string().default("Key Concept"),
+  definition: z.string().default(""),
+  bulletPoints: z.array(z.string()).default([]),
+  formula: z.string().optional().default(""),
+  codeSnippet: z.string().optional().default(""),
+  codeLanguage: z.string().optional().default(""),
+  example: z.string().optional().default(""),
+  visualDiagram: z.string().optional().default(""),
+  examTip: z.string().optional().default(""),
+  categoryType: z.string().optional().default("Concept"),
+  badgeColor: z.string().optional().default("indigo"),
+});
+
+export const comparisonTableRowSchema = z.object({
+  type: z.string().default(""),
+  definition: z.string().default(""),
+  example: z.string().default(""),
+  use: z.string().default(""),
+  badgeColor: z.string().optional().default("indigo"),
+});
+
+export const comparisonTableSchema = z.object({
+  title: z.string().default("Comparison Matrix"),
+  headers: z.array(z.string()).default(["Type", "Definition", "Example", "Use"]),
+  rows: z.array(comparisonTableRowSchema).default([]),
+});
+
 export const generatedCheatsheetSchema = z.object({
+  unitNumber: z.union([z.number(), z.string()]).optional().default("UNIT REVISION"),
+  topicDomain: z.string().optional().default("general"),
   title: z.string().default("Structured Revision Cheatsheet"),
+  subtitle: z.string().optional().default(""),
   overview: z.string().default(""),
+  cards: z.array(cheatsheetCardSchema).optional().default([]),
+  comparisonTable: comparisonTableSchema.optional(),
   keyConcepts: z.array(cheatsheetKeyConceptSchema).default([]),
   definitions: z.array(cheatsheetDefinitionSchema).default([]),
   importantRules: z.array(z.string()).default([]),
@@ -85,6 +120,8 @@ export const generatedCheatsheetSchema = z.object({
   examples: z.array(cheatsheetExampleSchema).default([]),
   commonMistakes: z.array(cheatsheetMistakeSchema).default([]),
   quickRevisionPoints: z.array(z.string()).default([]),
+  examPoints: z.array(z.string()).optional().default([]),
+  topperTip: z.string().optional().default("Understand Concepts ➔ Practice Examples ➔ Write Definitions ➔ Revise Regularly"),
 });
 
 export const generateCheatsheetInputSchema = z.object({

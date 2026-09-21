@@ -449,20 +449,90 @@ export const LessonViewer = ({
                     </div>
                   )}
 
-                  {/* Key Points */}
+                  {/* Key Concepts */}
                   {lessonData?.keyConcepts && lessonData.keyConcepts.length > 0 && (
-                    <div className="pt-3 border-t border-white/5 space-y-2">
-                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                        Key Concepts
+                    <div className="pt-4 border-t border-white/5 space-y-3">
+                      <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Core Invariants & Key Concepts</span>
                       </h4>
-                      <ul className="space-y-2 text-xs text-slate-300">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {lessonData.keyConcepts.map((item, i) => (
-                          <li key={i} className="flex items-start space-x-2">
+                          <div key={i} className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex items-start space-x-2 text-xs text-slate-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 mt-1.5" />
-                            <MarkdownRenderer content={item} />
-                          </li>
+                            <div className="flex-1">
+                              <MarkdownRenderer content={item} />
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Practical Examples / Walkthrough */}
+                  {lessonData?.examples && lessonData.examples.length > 0 && (
+                    <div className="pt-4 border-t border-white/5 space-y-3">
+                      <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Code2 className="w-3.5 h-3.5" />
+                        <span>Practical Code & Step-by-Step Examples</span>
+                      </h4>
+                      <div className="space-y-3">
+                        {lessonData.examples.map((ex, i) => (
+                          <div key={i} className="p-4 rounded-2xl bg-[#080c14] border border-white/5 text-xs text-slate-300 space-y-2">
+                            <MarkdownRenderer content={ex} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Real-World Industry Application */}
+                  {lessonData?.realWorldApplication && (
+                    <div className="pt-4 border-t border-white/5 space-y-2">
+                      <h4 className="text-xs font-black text-cyan-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Real-World & Production Implementation</span>
+                      </h4>
+                      <div className="p-4 rounded-2xl bg-cyan-500/5 border border-cyan-500/15 text-xs text-slate-300 leading-relaxed">
+                        <MarkdownRenderer content={lessonData.realWorldApplication} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Common Pitfalls & Mistakes */}
+                  {lessonData?.commonMistakes && lessonData.commonMistakes.length > 0 && (
+                    <div className="pt-4 border-t border-white/5 space-y-3">
+                      <h4 className="text-xs font-black text-rose-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <HelpCircle className="w-3.5 h-3.5" />
+                        <span>Common Mistakes & Exam Pitfalls</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {lessonData.commonMistakes.map((m, i) => (
+                          <div key={i} className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-200">
+                            <MarkdownRenderer content={m} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Important Takeaways */}
+                  {lessonData?.importantTakeaways && lessonData.importantTakeaways.length > 0 && (
+                    <div className="pt-4 border-t border-white/5 space-y-3">
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30 text-xs text-indigo-200 space-y-2">
+                        <h5 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center space-x-1.5">
+                          <Award className="w-4 h-4 text-amber-400" />
+                          <span>Topper's Key Takeaways</span>
+                        </h5>
+                        <ul className="space-y-1.5 pl-2">
+                          {lessonData.importantTakeaways.map((t, i) => (
+                            <li key={i} className="flex items-start space-x-2">
+                              <span className="text-emerald-400 font-bold">✓</span>
+                              <span>{t}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   )}
 

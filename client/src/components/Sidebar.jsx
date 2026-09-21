@@ -5,7 +5,8 @@ import {
   BookOpen, 
   Calendar, 
   FileUp, 
-  Bot, 
+  Layers,
+  FileCode2,
   TrendingUp, 
   Settings,
   GraduationCap,
@@ -24,7 +25,9 @@ export const Sidebar = ({
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'my-learning', label: 'My Learning', icon: BookOpen, badge: activeCourse ? 'Active' : null },
+    { id: 'my-learning', label: 'My Courses', icon: BookOpen, badge: activeCourse ? 'Active' : null },
+    { id: 'flashcards', label: 'Flashcards', icon: Layers },
+    { id: 'cheatsheets', label: 'Cheatsheets', icon: FileCode2 },
     { id: 'planner', label: 'Study Planner', icon: Calendar },
     { id: 'upload-material', label: 'Upload Material', icon: FileUp },
     { id: 'progress', label: 'Progress', icon: TrendingUp },

@@ -82,6 +82,18 @@ const courseSchema = new mongoose.Schema(
       type: Number,
       default: 10,
     },
+    category: {
+      type: String,
+      default: "Programming & Computer Science",
+    },
+    includeVideos: {
+      type: Boolean,
+      default: true,
+    },
+    bannerGradient: {
+      type: String,
+      default: "from-indigo-600 via-purple-600 to-cyan-500",
+    },
     days: {
       type: [courseDaySchema],
       default: [],
@@ -89,6 +101,8 @@ const courseSchema = new mongoose.Schema(
     setupParams: {
       topic: { type: String, required: true },
       learningGoal: { type: String, required: true },
+      category: { type: String, default: "Programming & Computer Science" },
+      includeVideos: { type: Boolean, default: true },
       currentLevel: {
         type: String,
         enum: ["Beginner", "Intermediate", "Advanced"],

@@ -98,39 +98,37 @@ export const saveCheatsheetHandler = async (req, res) => {
 
     let doc = await Cheatsheet.findOne(query);
 
+    const cheatsheetPayload = {
+      courseId,
+      moduleIndex,
+      lessonIndex,
+      lessonTitle,
+      sourceType,
+      title: cheatsheet.title || lessonTitle,
+      subtitle: cheatsheet.subtitle || "",
+      overview: cheatsheet.overview || "",
+      unitNumber: cheatsheet.unitNumber || "UNIT REVISION",
+      topicDomain: cheatsheet.topicDomain || "general",
+      cards: cheatsheet.cards || [],
+      comparisonTable: cheatsheet.comparisonTable || { title: "", headers: [], rows: [] },
+      keyConcepts: cheatsheet.keyConcepts || [],
+      definitions: cheatsheet.definitions || [],
+      importantRules: cheatsheet.importantRules || [],
+      formulas: cheatsheet.formulas || [],
+      syntaxPatterns: cheatsheet.syntaxPatterns || [],
+      examples: cheatsheet.examples || [],
+      commonMistakes: cheatsheet.commonMistakes || [],
+      quickRevisionPoints: cheatsheet.quickRevisionPoints || [],
+      examPoints: cheatsheet.examPoints || [],
+      topperTip: cheatsheet.topperTip || "",
+      userId: req.user.id,
+      userEmail: req.user.email || null,
+    };
+
     if (!doc) {
-      doc = new Cheatsheet({
-        courseId,
-        moduleIndex,
-        lessonIndex,
-        lessonTitle,
-        sourceType,
-        title: cheatsheet.title || lessonTitle,
-        overview: cheatsheet.overview,
-        keyConcepts: cheatsheet.keyConcepts,
-        definitions: cheatsheet.definitions,
-        importantRules: cheatsheet.importantRules,
-        formulas: cheatsheet.formulas,
-        syntaxPatterns: cheatsheet.syntaxPatterns,
-        examples: cheatsheet.examples,
-        commonMistakes: cheatsheet.commonMistakes,
-        quickRevisionPoints: cheatsheet.quickRevisionPoints,
-        userId: req.user.id,
-        userEmail: req.user.email || null,
-      });
+      doc = new Cheatsheet(cheatsheetPayload);
     } else {
-      doc.title = cheatsheet.title || lessonTitle;
-      doc.overview = cheatsheet.overview;
-      doc.keyConcepts = cheatsheet.keyConcepts;
-      doc.definitions = cheatsheet.definitions;
-      doc.importantRules = cheatsheet.importantRules;
-      doc.formulas = cheatsheet.formulas;
-      doc.syntaxPatterns = cheatsheet.syntaxPatterns;
-      doc.examples = cheatsheet.examples;
-      doc.commonMistakes = cheatsheet.commonMistakes;
-      doc.quickRevisionPoints = cheatsheet.quickRevisionPoints;
-      doc.userId = req.user.id;
-      doc.userEmail = req.user.email || null;
+      Object.assign(doc, cheatsheetPayload);
     }
 
     await doc.save();

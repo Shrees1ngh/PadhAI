@@ -141,6 +141,34 @@ export const CourseRoadmap = ({
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             <button
+              onClick={() => {
+                if (onSelectLesson) {
+                  // Jump to the first uncompleted lesson, or 0,0
+                  let targetMod = 0;
+                  let targetLess = 0;
+                  let found = false;
+                  for (let m = 0; m < modules.length; m++) {
+                    const lessons = modules[m].lessons || [];
+                    for (let l = 0; l < lessons.length; l++) {
+                      if (!completedKeys.has(`${m}_${l}`)) {
+                        targetMod = m;
+                        targetLess = l;
+                        found = true;
+                        break;
+                      }
+                    }
+                    if (found) break;
+                  }
+                  onSelectLesson(targetMod, targetLess);
+                }
+              }}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-xs font-black text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-1.5 min-h-[36px]"
+            >
+              <PlayCircle className="w-4 h-4" />
+              <span>{completedCount > 0 ? 'Resume Course' : 'Start Course'}</span>
+            </button>
+
+            <button
               onClick={onEditPlan}
               className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center space-x-1.5 min-h-[36px]"
             >

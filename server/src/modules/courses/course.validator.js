@@ -25,6 +25,18 @@ export const courseSetupInputSchema = z.object({
     .string()
     .optional()
     .default("1-2 hours"),
+  category: z
+    .string()
+    .optional()
+    .default("Programming & Computer Science"),
+  includeVideos: z
+    .boolean()
+    .optional()
+    .default(true),
+  bannerGradient: z
+    .string()
+    .optional()
+    .default("from-indigo-600 via-purple-600 to-cyan-500"),
   learningPreference: z
     .string()
     .optional()
@@ -61,6 +73,10 @@ export const courseOutlineSchema = z.object({
     .min(1, "Course must have at least one learning objective"),
   estimatedDuration: z.string().min(1, "Estimated duration cannot be empty"),
   durationDays: z.number().int().min(1).optional(),
+  category: z.string().optional(),
+  includeVideos: z.boolean().optional(),
+  bannerGradient: z.string().optional(),
+  setupParams: z.any().optional(),
   days: z.array(courseDaySchema).optional().default([]),
   modules: z.array(moduleSchema).min(1, "Course must have at least one module"),
 });
