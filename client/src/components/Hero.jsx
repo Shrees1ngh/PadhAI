@@ -88,11 +88,13 @@ export const Hero = ({
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs text-slate-300 shadow-sm"
+          className="inline-flex items-center space-x-2.5 px-4 py-2 rounded-full bg-white/5 border border-cyan-500/30 backdrop-blur-md text-xs sm:text-sm text-slate-200 shadow-md shadow-cyan-500/10 hover:border-cyan-500/50 transition-colors"
         >
-          <img src="/logo.svg" alt="PadhAI" className="w-5 h-5 object-contain" />
-          <span className="font-semibold">PadhAI Learning Platform</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <div className="w-7 h-7 rounded-lg overflow-hidden bg-white/5 border border-cyan-500/30 p-1 flex items-center justify-center shrink-0">
+            <img src="/logo.svg" alt="PadhAI" className="w-full h-full object-contain filter drop-shadow-[0_1px_4px_rgba(6,182,212,0.4)]" />
+          </div>
+          <span className="font-bold tracking-tight text-white">Padh<span className="text-cyan-400">AI</span> Learning Platform</span>
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
         </motion.div>
 
         {/* Hero Title */}

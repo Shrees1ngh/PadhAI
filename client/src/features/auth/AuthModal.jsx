@@ -150,8 +150,8 @@ export const AuthModal = () => {
 
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center shadow-lg shadow-cyan-500/15 mx-auto mb-3 p-1.5">
-            <img src="/logo.svg" alt="PadhAI Logo" className="w-full h-full object-contain" />
+          <div className="w-20 h-20 rounded-3xl overflow-hidden border border-cyan-500/30 bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center shadow-xl shadow-cyan-500/20 mx-auto mb-4 p-2">
+            <img src="/logo.svg" alt="PadhAI Logo" className="w-full h-full object-contain filter drop-shadow-[0_2px_10px_rgba(6,182,212,0.35)]" />
           </div>
           <h2 className="text-2xl font-black text-white tracking-tight">
             {authModalView === 'signup'
