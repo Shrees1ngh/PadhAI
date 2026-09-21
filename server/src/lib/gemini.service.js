@@ -1,5 +1,4 @@
 import { GoogleGenAI } from "@google/genai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { jsonrepair } from "jsonrepair";
 import { courseOutlineSchema, normalizeCourseOutline } from "../modules/courses/course.validator.js";
 import { ENV } from "../config/env.js";
@@ -32,7 +31,161 @@ export const cleanAndParseJson = (rawText) => {
       return JSON.parse(repaired);
     } catch (repairErr) {
       console.error("JSON repair failed on AI text:", cleaned.slice(0, 300));
-      throw new Error(`Failed to parse AI response into valid JSON: ${repairErr.message}`);
+      const parseErr = new Error(`Failed to parse AI response into valid JSON: ${repairErr.message}`);
+      parseErr.status = 502;
+      parseErr.code = "AI_OUTPUT_INVALID";
+      throw parseErr;
+    }
+  }
+};
+
+/**
+ * Standard unified helper to call Gemini using @google/genai SDK.
+ * Retries at most 1 time, strictly for 5xx server errors or JSON-parse failures.
+ * NEVER retries on 429 (Rate Limit / Quota Exceeded) or 401 (Invalid API Key).
+ *
+ * @param {Object} options
+ * @param {string} options.prompt
+ * @param {Object} [options.responseSchema] - Optional Zod schema to parse/validate against
+ * @param {number} [options.temperature=0.7]
+ * @param {string} [options.systemInstruction]
+ * @param {string} [options.apiKey]
+ * @param {string} [options.model]
+ * @param {boolean} [options.jsonMode=true]
+ */
+export const callGemini = async ({
+  prompt,
+  responseSchema,
+  temperature = 0.7,
+  systemInstruction,
+  apiKey,
+  model,
+  jsonMode = true,
+}) => {
+  const activeKey = resolveApiKey(apiKey);
+
+  if (!activeKey) {
+    const error = new Error(
+      "Gemini API key is required. Please add GEMINI_API_KEY in server/.env or configure your personal API key in Settings."
+    );
+    error.status = 400;
+    error.code = "MISSING_API_KEY";
+    throw error;
+  }
+
+  const ai = new GoogleGenAI({ apiKey: activeKey });
+  const modelName = model || ENV.GEMINI_MODEL || "gemini-3.6-flash";
+
+  const config = {
+    temperature,
+  };
+
+  if (jsonMode) {
+    config.responseMimeType = "application/json";
+  }
+
+  if (systemInstruction) {
+    config.systemInstruction = systemInstruction;
+  }
+
+  let attempts = 0;
+  const maxAttempts = 2; // 1 initial + max 1 retry
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config,
+      });
+
+      const rawOutput =
+        response?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        response?.text ||
+        "";
+
+      if (jsonMode) {
+        const parsed = cleanAndParseJson(rawOutput);
+        if (responseSchema && typeof responseSchema.parse === "function") {
+          return responseSchema.parse(parsed);
+        }
+        return parsed;
+      }
+
+      return rawOutput;
+    } catch (error) {
+      // Check for 429 (Quota / Rate Limit) - NEVER RETRY
+      const is429 =
+        error.status === 429 ||
+        error.message?.includes("429") ||
+        error.message?.includes("Quota exceeded") ||
+        error.message?.includes("RESOURCE_EXHAUSTED") ||
+        error.code === "QUOTA_EXCEEDED";
+
+      if (is429) {
+        const rateLimitErr = new Error(
+          "Gemini API rate limit or daily quota reached. Please add your personal Gemini API key in Settings to continue."
+        );
+        rateLimitErr.status = 429;
+        rateLimitErr.code = "QUOTA_EXCEEDED";
+        throw rateLimitErr;
+      }
+
+      // Check for 401 (Invalid API Key) - NEVER RETRY
+      const is401 =
+        error.status === 401 ||
+        error.message?.includes("API key not valid") ||
+        error.message?.includes("API_KEY_INVALID") ||
+        error.message?.includes("401") ||
+        error.code === "INVALID_API_KEY";
+
+      if (is401) {
+        const keyErr = new Error("Invalid Gemini API Key. Please verify your key in Settings.");
+        keyErr.status = 401;
+        keyErr.code = "INVALID_API_KEY";
+        throw keyErr;
+      }
+
+      // Check for Zod / Schema validation error - DO NOT RETRY
+      if (error.name === "ZodError" || error.issues) {
+        const issues = error.issues || error.errors || [];
+        const valErr = new Error(
+          `AI output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
+        );
+        valErr.status = 502;
+        valErr.code = "AI_OUTPUT_INVALID";
+        throw valErr;
+      }
+
+      // Check if eligible for retry: ONLY 5xx server errors or JSON parse failure
+      const is5xx =
+        (error.status >= 500 && error.status < 600) ||
+        error.message?.includes("500") ||
+        error.message?.includes("503") ||
+        error.message?.includes("Internal server error") ||
+        error.message?.includes("Service Unavailable") ||
+        error.message?.includes("overloaded");
+
+      const isJsonParseError =
+        error.code === "AI_OUTPUT_INVALID" ||
+        error.message?.includes("Failed to parse AI response into valid JSON") ||
+        error instanceof SyntaxError ||
+        error.name === "SyntaxError";
+
+      if (attempts < maxAttempts && (is5xx || isJsonParseError)) {
+        console.warn(
+          `callGemini transient error (attempt ${attempts}/${maxAttempts}), retrying:`,
+          error.message
+        );
+        await new Promise((res) => setTimeout(res, 500));
+        continue;
+      }
+
+      // Final failure propagation
+      if (!error.status) error.status = 502;
+      if (!error.code) error.code = "AI_OUTPUT_INVALID";
+      throw error;
     }
   }
 };
@@ -133,58 +286,14 @@ EXACT JSON SCHEMA TO SATISFY:
   ]
 }`;
 
-  let rawOutput = "";
+  const parsedJson = await callGemini({
+    prompt,
+    temperature: 0.7,
+    apiKey: activeKey,
+  });
 
-  try {
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.7,
-        },
-      });
-
-      rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
-    } catch (sdkErr) {
-      console.warn("Primary GenAI SDK call fell back, trying generative-ai sdk:", sdkErr.message);
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    const parsedJson = cleanAndParseJson(rawOutput);
-    const normalizedOutline = normalizeCourseOutline(parsedJson, Number(durationDays) || 10);
-
-    // Validate with Zod
-    const validatedOutline = courseOutlineSchema.parse(normalizedOutline);
-    return validatedOutline;
-  } catch (error) {
-    console.error("Course generation failed:", error.message);
-    if (
-      error.message?.includes("429") ||
-      error.message?.includes("Quota exceeded") ||
-      error.message?.includes("RESOURCE_EXHAUSTED")
-    ) {
-      const rateLimitErr = new Error(
-        "Gemini API rate limit or daily quota reached (20/20 requests). Please add your personal Gemini API key in Settings to generate 100% real-time courses."
-      );
-      rateLimitErr.status = 429;
-      rateLimitErr.code = "QUOTA_EXCEEDED";
-      throw rateLimitErr;
-    }
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      throw new Error(`AI generated outline did not match expected structure: ${issues.map(e => e.message).join(", ")}`);
-    }
-    throw error;
-  }
+  const normalizedOutline = normalizeCourseOutline(parsedJson, Number(durationDays) || 10);
+  return courseOutlineSchema.parse(normalizedOutline);
 };
 
 /**
@@ -277,44 +386,14 @@ EXACT JSON SCHEMA:
   ]
 }`;
 
-  let rawOutput = "";
+  const parsedJson = await callGemini({
+    prompt,
+    temperature: 0.6,
+    apiKey: activeKey,
+  });
 
-  try {
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.6,
-        },
-      });
-
-      rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
-    } catch (sdkErr) {
-      console.warn("GenAI SDK modification fallback:", sdkErr.message);
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    const parsedJson = cleanAndParseJson(rawOutput);
-    const normalizedOutline = normalizeCourseOutline(parsedJson, targetDays);
-    const validatedOutline = courseOutlineSchema.parse(normalizedOutline);
-    return validatedOutline;
-  } catch (error) {
-    console.error("Course modification failed:", error.message);
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      throw new Error(`AI modified outline did not match expected structure: ${issues.map(e => e.message).join(", ")}`);
-    }
-    throw error;
-  }
+  const normalizedOutline = normalizeCourseOutline(parsedJson, targetDays);
+  return courseOutlineSchema.parse(normalizedOutline);
 };
 
 /**

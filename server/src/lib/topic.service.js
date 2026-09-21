@@ -1,7 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
-import { ENV } from "../config/env.js";
+import { resolveApiKey, callGemini } from "./gemini.service.js";
 
 /**
  * Detect matching visualization type from topic string
@@ -118,52 +115,16 @@ Return STRICT valid JSON conforming to this schema without Markdown fence wrappe
   ]
 }`;
 
-  let rawOutput = "";
+  const parsed = await callGemini({
+    prompt,
+    temperature: 0.7,
+    apiKey: activeKey,
+  });
 
-  try {
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.7,
-        },
-      });
-      rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
-    } catch (sdkErr) {
-      console.warn("Primary GenAI SDK fallback in topic service:", sdkErr.message);
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    const parsed = cleanAndParseJson(rawOutput);
-    if (!parsed.visualizationType || parsed.visualizationType === "none") {
-      parsed.visualizationType = detectedVis;
-    }
-    return parsed;
-  } catch (err) {
-    console.error("Gemini Quick Learn generation error:", err.message);
-    if (
-      err.message?.includes("429") ||
-      err.message?.includes("Quota exceeded") ||
-      err.message?.includes("RESOURCE_EXHAUSTED")
-    ) {
-      const rateLimitErr = new Error(
-        "Gemini API daily quota reached. Please add your Gemini API Key in Settings to generate real-time learning guides."
-      );
-      rateLimitErr.status = 429;
-      rateLimitErr.code = "QUOTA_EXCEEDED";
-      throw rateLimitErr;
-    }
-    throw new Error(err.message || "Failed to generate learning material for this topic. Please try again.");
+  if (!parsed.visualizationType || parsed.visualizationType === "none") {
+    parsed.visualizationType = detectedVis;
   }
+  return parsed;
 };
 
 /**

@@ -1,8 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { cleanAndParseJson, resolveApiKey } from "./gemini.service.js";
+import { resolveApiKey, callGemini } from "./gemini.service.js";
 import { studyMaterialAnalysisSchema } from "../modules/study-materials/studyMaterial.validator.js";
-import { ENV } from "../config/env.js";
 
 /**
  * Generates demo study material analysis for developer demo mode.
@@ -159,41 +156,40 @@ export const analyzeStudyMaterialWithGemini = async ({
     summary:
       "PRIMARY ACTION GOAL: High-yield executive summary. Condense the document into concise key takeaways, essential insights, core principles, and direct summaries without unnecessary fluff.",
     "extract-topics":
-      "PRIMARY ACTION GOAL: Syllabus & topic extraction. Clearly delineate every major topic, core subtopic, domain hierarchy, and scope boundaries present in the material.",
+      "PRIMARY ACTION GOAL: Topic breakdown & curriculum roadmap. Identify and categorize every major topic, subtopic, prerequisite dependency, and overarching theme in logical sequential order.",
     "study-material":
-      "PRIMARY ACTION GOAL: Comprehensive textbook-grade study notes. Provide thorough explanations, formal definitions, concrete examples, formulas, common pitfalls, and review questions.",
+      "PRIMARY ACTION GOAL: Comprehensive study guide & knowledge base. Generate key concepts, core points, precise definitions, formulas, practical examples, and common traps.",
     quiz:
-      "PRIMARY ACTION GOAL: Practice & Diagnostic Assessment. Generate challenging, high-yield practice questions with detailed conceptual explanations for each option, highlighting common traps.",
+      "PRIMARY ACTION GOAL: Self-assessment diagnostic quiz. Generate high-yield conceptual and application-based practice questions with detailed diagnostic explanations.",
     cheatsheet:
-      "PRIMARY ACTION GOAL: Ultra-dense quick reference revision sheet. Focus heavily on concise definitions, formulas, syntax, rules, and memory aids suitable for rapid last-minute review.",
+      "PRIMARY ACTION GOAL: Fast revision cheatsheet. Maximize density of essential formulas, definitions, key rules, and high-yield summary points for quick exam-day review.",
     flashcards:
-      "PRIMARY ACTION GOAL: Active recall & spaced repetition synthesis. Focus on atomic concept-definition pairs, key questions, and high-yield facts formatted for flashcard learning.",
+      "PRIMARY ACTION GOAL: Flashcard & spaced repetition concepts. Focus heavily on key terms, definitions, formulas, and distinct core principles.",
     "revision-plan":
-      "PRIMARY ACTION GOAL: Structured revision roadmap. Organize the topics into a prioritized learning plan, highlighting prerequisites, critical high-yield modules, and review milestones.",
+      "PRIMARY ACTION GOAL: Structured revision strategy. Highlight the highest-yield topics, common misconceptions, and recommended study sequence.",
     "weak-topics":
-      "PRIMARY ACTION GOAL: Weak & Stumbling Block Identification. Focus on difficult conceptual bottlenecks, frequent misconceptions, subtle edge cases, and high-stakes exam pitfalls.",
-  }[action] || "PRIMARY ACTION GOAL: Generate high-yield structured learning resources.";
+      "PRIMARY ACTION GOAL: Identifying potential pitfall areas and complex concepts that students typically find difficult.",
+  }[action] || "PRIMARY ACTION GOAL: Comprehensive structured study guide generation.";
 
-  const prompt = `You are PadhAI's master Study Material Analyzer & Academic Knowledge Synthesizer.
-
-TASK:
-Analyze the following extracted study material and generate high-yield, structured learning resources for a learner at the **${learnerLevel}** level.
+  const prompt = `You are PadhAI's master academic research specialist and pedagogical analyst.
+Your task is to analyze the provided study material document and produce an exceptional, rigorous study guide.
 
 ${actionGuidance}
 
-PEDAGOGICAL & EXTRACTION RULES:
-1. Grounding: Analyze ONLY the provided document text below. Do NOT invent facts, theories, or details that are not present or directly supported in the source document.
-2. Terminology: Preserve the exact terminology, definitions, and mathematical notations used in the uploaded material.
-3. Level Adaptation: ${levelGuidance}
-4. Action Alignment: Prioritize and emphasize sections corresponding to the user's requested action. Ensure all sections are populated from the document. If a document does not contain explicit formulas or math, provide relevant conceptual formulas or leave importantFormulas as an empty array [].
-5. Format: Output MUST be strictly valid JSON matching the schema below without markdown fences, prologue, or explanatory prose.
+LEARNER CALIBRATION:
+${levelGuidance}
 
-JSON OUTPUT SCHEMA:
+ANALYSIS INSTRUCTIONS:
+1. Grounding: All extracted topics, concepts, definitions, and questions must be strictly grounded in the document content provided. Do not invent unrelated concepts.
+2. Structure: Return ONLY a valid JSON object matching the schema below. No markdown formatting outside of JSON string values.
+3. Completeness: Ensure all sections are populated with rich, educational detail.
+
+JSON SCHEMA:
 {
-  "documentTitle": "string (Concise, accurate title representing the document content or lecture topic)",
-  "summary": "string (A rich, well-structured 2 to 4 paragraph synthesis summarizing the core themes, objectives, and conclusions)",
+  "documentTitle": "string (Clean, descriptive title for the document)",
+  "summary": "string (Comprehensive 2-4 paragraph structured Markdown summary of the material)",
   "importantTopics": [
-    "string (Crucial high-level topic or chapter name covered in the text)"
+    "string (Major topic or thematic module covered in the text)"
   ],
   "keyConcepts": [
     {
@@ -255,55 +251,10 @@ EXTRACTED DOCUMENT CONTENT:
 ${documentText}
 """`;
 
-  let rawOutput = "";
-
-  try {
-    // Primary attempt: @google/genai
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.4,
-        },
-      });
-
-      rawOutput =
-        response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        response?.text ||
-        "";
-    } catch (sdkErr) {
-      console.warn(
-        "Primary @google/genai call failed for study material analysis, falling back to @google/generative-ai:",
-        sdkErr.message
-      );
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.4,
-        },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    const parsedJson = cleanAndParseJson(rawOutput);
-    const validatedData = studyMaterialAnalysisSchema.parse(parsedJson);
-    return validatedData;
-  } catch (error) {
-    console.error("Study material analysis failed:", error.message);
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      throw new Error(
-        `Gemini generated study material did not match the expected schema: ${issues
-          .map((e) => `${e.path?.join?.(".") || ""}: ${e.message}`)
-          .join(", ")}`
-      );
-    }
-    throw error;
-  }
+  return await callGemini({
+    prompt,
+    responseSchema: studyMaterialAnalysisSchema,
+    temperature: 0.4,
+    apiKey: activeKey,
+  });
 };

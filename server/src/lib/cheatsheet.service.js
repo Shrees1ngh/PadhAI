@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { cleanAndParseJson, resolveApiKey } from "./gemini.service.js";
+import { resolveApiKey, callGemini } from "./gemini.service.js";
 import { generatedCheatsheetSchema } from "../modules/cheatsheets/cheatsheet.validator.js";
-import { ENV } from "../config/env.js";
 
 /**
  * Generate high-yield revision cheatsheet for demo mode in non-production.
@@ -198,64 +196,10 @@ SOURCE MATERIAL CONTENT:
 ${(contentText || lessonTitle).slice(0, 75000)}
 """`;
 
-  let rawOutput = "";
-
-  try {
-    const ai = new GoogleGenAI({ apiKey: activeKey });
-    const response = await ai.models.generateContent({
-      model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      },
-    });
-
-    rawOutput =
-      response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      response?.text ||
-      "";
-
-    const parsed = cleanAndParseJson(rawOutput);
-    return generatedCheatsheetSchema.parse(parsed);
-  } catch (error) {
-    console.error("Cheatsheet generation failed:", error.message);
-    if (
-      error.message?.includes("429") ||
-      error.message?.includes("Quota exceeded") ||
-      error.message?.includes("RESOURCE_EXHAUSTED") ||
-      error.status === 429
-    ) {
-      const rateLimitErr = new Error(
-        "Gemini API rate limit or daily quota reached. Please provide your own Gemini API key in Settings."
-      );
-      rateLimitErr.status = 429;
-      rateLimitErr.code = "QUOTA_EXCEEDED";
-      throw rateLimitErr;
-    }
-    if (
-      error.message?.includes("API key not valid") ||
-      error.message?.includes("API_KEY_INVALID") ||
-      error.status === 401 ||
-      error.code === "INVALID_API_KEY"
-    ) {
-      const keyErr = new Error("Invalid Gemini API Key. Please configure a valid key in Settings.");
-      keyErr.status = 401;
-      keyErr.code = "INVALID_API_KEY";
-      throw keyErr;
-    }
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      const valErr = new Error(
-        `AI generated output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
-      );
-      valErr.status = 502;
-      valErr.code = "AI_OUTPUT_INVALID";
-      throw valErr;
-    }
-    const genErr = new Error(error.message || "Failed to generate cheatsheet.");
-    genErr.status = error.status || 502;
-    genErr.code = error.code || "AI_OUTPUT_INVALID";
-    throw genErr;
-  }
+  return await callGemini({
+    prompt,
+    responseSchema: generatedCheatsheetSchema,
+    temperature: 0.3,
+    apiKey: activeKey,
+  });
 };

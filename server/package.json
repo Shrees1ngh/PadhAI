@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
-    "@google/generative-ai": "^0.24.1",
     "adm-zip": "^0.6.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",

@@ -1,8 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
+import { resolveApiKey, callGemini } from "./gemini.service.js";
 import { quizOutputSchema } from "../modules/quizzes/quiz.validator.js";
-import { ENV } from "../config/env.js";
 
 /**
  * Generate a 5-question conceptual quiz based on lesson content using Gemini.
@@ -97,63 +94,14 @@ EXACT JSON SCHEMA TO SATISFY:
   ]
 }`;
 
-  let rawOutput = "";
+  const result = await callGemini({
+    prompt,
+    temperature: 0.5,
+    apiKey: activeKey,
+  });
 
-  try {
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.5,
-        },
-      });
-
-      rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
-    } catch (sdkErr) {
-      console.warn("Primary GenAI SDK call fallback in quiz generator:", sdkErr.message);
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: { responseMimeType: "application/json", temperature: 0.5 },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    let parsedJson = cleanAndParseJson(rawOutput);
-
-    // Normalize if returned as an array directly
-    if (Array.isArray(parsedJson)) {
-      parsedJson = { questions: parsedJson };
-    }
-
-    const validatedQuiz = quizOutputSchema.parse(parsedJson);
-    return validatedQuiz;
-  } catch (error) {
-    console.error("Quiz generation failed:", error.message);
-    if (
-      error.message?.includes("429") ||
-      error.message?.includes("Quota exceeded") ||
-      error.message?.includes("RESOURCE_EXHAUSTED")
-    ) {
-      const rateLimitErr = new Error(
-        "Gemini API rate limit or daily quota reached. Please add your Gemini API key in Settings to generate real-time quizzes."
-      );
-      rateLimitErr.status = 429;
-      rateLimitErr.code = "QUOTA_EXCEEDED";
-      throw rateLimitErr;
-    }
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      throw new Error(
-        `AI quiz output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
-      );
-    }
-    throw error;
-  }
+  const normalized = Array.isArray(result) ? { questions: result } : result;
+  return quizOutputSchema.parse(normalized);
 };
 
 /**

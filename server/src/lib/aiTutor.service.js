@@ -1,8 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
+import { resolveApiKey, callGemini } from "./gemini.service.js";
 import { tutorChatOutputSchema } from "../modules/ai-tutor/aiTutor.validator.js";
-import { ENV } from "../config/env.js";
 
 /**
  * Generate a contextual, pedagogical AI Tutor response grounded in the current lesson.
@@ -128,57 +125,12 @@ ${historyFormatted || "(No prior conversation in this lesson session)"}
   "isOutsideLessonScope": false
 }`;
 
-  let rawOutput = "";
-
-  try {
-    try {
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      const response = await ai.models.generateContent({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.6,
-        },
-      });
-
-      rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
-    } catch (sdkErr) {
-      console.warn("Primary GenAI call fallback in AI Tutor service:", sdkErr.message);
-      const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({
-        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
-        generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
-      });
-      const result = await model.generateContent(prompt);
-      rawOutput = result.response.text();
-    }
-
-    const parsed = cleanAndParseJson(rawOutput);
-    const validated = tutorChatOutputSchema.parse(parsed);
-    return validated;
-  } catch (error) {
-    console.error("AI Tutor response generation failed:", error.message);
-    if (
-      error.message?.includes("429") ||
-      error.message?.includes("Quota exceeded") ||
-      error.message?.includes("RESOURCE_EXHAUSTED")
-    ) {
-      const rateLimitErr = new Error(
-        "Gemini API rate limit or daily quota reached. Please add your Gemini API key in Settings to chat with AI Tutor in real-time."
-      );
-      rateLimitErr.status = 429;
-      rateLimitErr.code = "QUOTA_EXCEEDED";
-      throw rateLimitErr;
-    }
-    if (error.name === "ZodError" || error.issues) {
-      const issues = error.issues || error.errors || [];
-      throw new Error(
-        `AI Tutor output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
-      );
-    }
-    throw error;
-  }
+  return await callGemini({
+    prompt,
+    responseSchema: tutorChatOutputSchema,
+    temperature: 0.6,
+    apiKey: activeKey,
+  });
 };
 
 /**
