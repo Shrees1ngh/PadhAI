@@ -76,13 +76,14 @@ export const callGemini = async ({
   const ai = new GoogleGenAI({ apiKey: activeKey });
   const configuredModel = model || ENV.GEMINI_MODEL || "gemini-2.5-flash";
 
-  // Fallback candidate models when primary is experiencing 503 high demand or capacity issues
+  // Fallback candidate models supported by @google/genai SDK
   const candidateModels = [
     configuredModel,
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
-  ].filter((m, i, arr) => arr.indexOf(m) === i);
+    "gemini-2.5-pro",
+    "gemini-2.0-flash-lite",
+  ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
 
   const config = {
     temperature,
