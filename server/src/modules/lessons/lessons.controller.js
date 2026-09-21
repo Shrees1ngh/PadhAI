@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Lesson from "./lesson.model.js";
+import Course from "../courses/course.model.js";
 import {
   generateLessonInputSchema,
   saveLessonInputSchema,
@@ -20,6 +21,7 @@ export const generateLesson = async (req, res) => {
 
     const validatedInput = generateLessonInputSchema.parse({
       ...req.body,
+      currentLevel: req.body.currentLevel || req.body.learnerLevel || "Beginner",
       apiKey,
     });
 
@@ -46,24 +48,33 @@ export const generateLesson = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in generateLesson:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to generate lesson content",
-      code: error.code || "LESSON_GENERATION_ERROR",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to generate lesson content"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "LESSON_GENERATION_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };
 
 /**
- * Save generated lesson to MongoDB
+ * Save generated lesson to MongoDB, validating course ownership
  * POST /api/lessons/save
  */
 export const saveLesson = async (req, res) => {
   try {
     const validatedData = saveLessonInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to save lesson content.",
+      });
+    }
 
     // Check MongoDB availability — never create fake persistence
     if (!isDbReady) {
@@ -77,7 +88,22 @@ export const saveLesson = async (req, res) => {
       });
     }
 
-    // Upsert lesson in MongoDB
+    // Verify parent course ownership if courseId is provided
+    if (validatedData.courseId) {
+      const parentCourse = await Course.findOne({
+        _id: validatedData.courseId,
+        userId: req.user.id,
+      }).lean();
+
+      if (!parentCourse) {
+        return res.status(404).json({
+          success: false,
+          message: "Associated course not found or unauthorized.",
+        });
+      }
+    }
+
+    // Upsert lesson in MongoDB with userId
     const lesson = await Lesson.findOneAndUpdate(
       {
         courseId: validatedData.courseId,
@@ -90,6 +116,7 @@ export const saveLesson = async (req, res) => {
         lessonIndex: validatedData.lessonIndex,
         level: validatedData.level,
         bloomTaxonomyStage: validatedData.bloomTaxonomyStage,
+        userId: req.user.id,
         ...validatedData.lessonContent,
       },
       { new: true, upsert: true }
@@ -102,22 +129,31 @@ export const saveLesson = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in saveLesson:", error.message);
-    const status = error.name === "ZodError" ? 400 : 500;
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = isZod ? 400 : (error.status || 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to save lesson",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input for saving lesson") : (error.message || "Failed to save lesson"),
+      errors: issues.length ? issues : null,
     });
   }
 };
 
 /**
- * Retrieve saved lesson from MongoDB
+ * Retrieve saved lesson from MongoDB, verifying course ownership
  * GET /api/lessons/:courseId/:moduleIndex/:lessonIndex
  */
 export const getLesson = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to view lesson.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(503).json({
@@ -128,6 +164,19 @@ export const getLesson = async (req, res) => {
     }
 
     const { courseId, moduleIndex, lessonIndex } = req.params;
+
+    // Verify parent course ownership
+    const parentCourse = await Course.findOne({
+      _id: courseId,
+      userId: req.user.id,
+    }).lean();
+
+    if (!parentCourse) {
+      return res.status(404).json({
+        success: false,
+        message: "Lesson not found",
+      });
+    }
 
     const lesson = await Lesson.findOne({
       courseId,
@@ -155,12 +204,19 @@ export const getLesson = async (req, res) => {
 };
 
 /**
- * Mark lesson as completed in MongoDB
+ * Mark lesson as completed in MongoDB, verifying course ownership
  * PATCH /api/lessons/:courseId/:moduleIndex/:lessonIndex/complete
  */
 export const markLessonComplete = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to update lesson progress.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(503).json({
@@ -173,13 +229,26 @@ export const markLessonComplete = async (req, res) => {
     const { courseId, moduleIndex, lessonIndex } = req.params;
     const { completed = true } = req.body;
 
+    // Verify parent course ownership
+    const parentCourse = await Course.findOne({
+      _id: courseId,
+      userId: req.user.id,
+    }).lean();
+
+    if (!parentCourse) {
+      return res.status(404).json({
+        success: false,
+        message: "Lesson not found",
+      });
+    }
+
     const lesson = await Lesson.findOneAndUpdate(
       {
         courseId,
         moduleIndex: parseInt(moduleIndex, 10),
         lessonIndex: parseInt(lessonIndex, 10),
       },
-      { completed },
+      { completed, userId: req.user.id },
       { new: true }
     );
 

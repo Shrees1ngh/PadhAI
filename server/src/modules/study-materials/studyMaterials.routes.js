@@ -71,11 +71,14 @@ const uploadMiddleware = (req, res, next) => {
   });
 };
 
+import { optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
+
 /**
  * POST /api/study-materials/analyze
  * Analyzes uploaded study material (PDF, PPT/PPTX, TXT) and generates structured study resources.
  */
-router.post("/analyze", uploadMiddleware, analyzeStudyMaterialHandler);
+router.post("/analyze", aiRateLimiter, optionalAuthenticateToken, uploadMiddleware, analyzeStudyMaterialHandler);
 
 // Status / Health check route for this module
 router.get("/", (req, res) => {

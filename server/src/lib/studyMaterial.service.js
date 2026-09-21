@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cleanAndParseJson, resolveApiKey } from "./gemini.service.js";
 import { studyMaterialAnalysisSchema } from "../modules/study-materials/studyMaterial.validator.js";
+import { ENV } from "../config/env.js";
 
 /**
  * Generates demo study material analysis for developer demo mode.
@@ -110,6 +111,7 @@ const generateDemoMaterialAnalysis = (filename = "Sample Document", learnerLevel
  * @param {string} params.filename - Original uploaded file name
  * @param {string} params.fileType - Detected file type (pdf, pptx, txt)
  * @param {string} [params.learnerLevel="Intermediate"] - 'Beginner' | 'Intermediate' | 'Advanced'
+ * @param {string} [params.action="study-material"] - Learning action (explain, summary, extract-topics, study-material, quiz, cheatsheet, flashcards, revision-plan, weak-topics)
  * @param {string} [params.apiKey] - Optional custom API key from client
  */
 export const analyzeStudyMaterialWithGemini = async ({
@@ -117,6 +119,7 @@ export const analyzeStudyMaterialWithGemini = async ({
   filename,
   fileType,
   learnerLevel = "Intermediate",
+  action = "study-material",
   apiKey,
 }) => {
   const activeKey = resolveApiKey(apiKey);
@@ -143,16 +146,39 @@ export const analyzeStudyMaterialWithGemini = async ({
       "Deliver rigorous, in-depth technical analysis focusing on nuanced mechanics, architectural trade-offs, edge cases, and formal precision.",
   }[learnerLevel] || "Provide balanced explanations with structured conceptual clarity.";
 
+  const actionGuidance = {
+    explain:
+      "PRIMARY ACTION GOAL: Deep pedagogical explanation. Break down all complex concepts into intuitive, approachable analogies and step-by-step clarity. Explain the 'why' and 'how' behind every mechanism in the document.",
+    summary:
+      "PRIMARY ACTION GOAL: High-yield executive summary. Condense the document into concise key takeaways, essential insights, core principles, and direct summaries without unnecessary fluff.",
+    "extract-topics":
+      "PRIMARY ACTION GOAL: Syllabus & topic extraction. Clearly delineate every major topic, core subtopic, domain hierarchy, and scope boundaries present in the material.",
+    "study-material":
+      "PRIMARY ACTION GOAL: Comprehensive textbook-grade study notes. Provide thorough explanations, formal definitions, concrete examples, formulas, common pitfalls, and review questions.",
+    quiz:
+      "PRIMARY ACTION GOAL: Practice & Diagnostic Assessment. Generate challenging, high-yield practice questions with detailed conceptual explanations for each option, highlighting common traps.",
+    cheatsheet:
+      "PRIMARY ACTION GOAL: Ultra-dense quick reference revision sheet. Focus heavily on concise definitions, formulas, syntax, rules, and memory aids suitable for rapid last-minute review.",
+    flashcards:
+      "PRIMARY ACTION GOAL: Active recall & spaced repetition synthesis. Focus on atomic concept-definition pairs, key questions, and high-yield facts formatted for flashcard learning.",
+    "revision-plan":
+      "PRIMARY ACTION GOAL: Structured revision roadmap. Organize the topics into a prioritized learning plan, highlighting prerequisites, critical high-yield modules, and review milestones.",
+    "weak-topics":
+      "PRIMARY ACTION GOAL: Weak & Stumbling Block Identification. Focus on difficult conceptual bottlenecks, frequent misconceptions, subtle edge cases, and high-stakes exam pitfalls.",
+  }[action] || "PRIMARY ACTION GOAL: Generate high-yield structured learning resources.";
+
   const prompt = `You are PadhAI's master Study Material Analyzer & Academic Knowledge Synthesizer.
 
 TASK:
 Analyze the following extracted study material and generate high-yield, structured learning resources for a learner at the **${learnerLevel}** level.
 
+${actionGuidance}
+
 PEDAGOGICAL & EXTRACTION RULES:
 1. Grounding: Analyze ONLY the provided document text below. Do NOT invent facts, theories, or details that are not present or directly supported in the source document.
 2. Terminology: Preserve the exact terminology, definitions, and mathematical notations used in the uploaded material.
 3. Level Adaptation: ${levelGuidance}
-4. Completeness: Ensure all sections are populated from the document. If a document does not contain explicit formulas or math, provide relevant conceptual formulas or leave importantFormulas as an empty array [].
+4. Action Alignment: Prioritize and emphasize sections corresponding to the user's requested action. Ensure all sections are populated from the document. If a document does not contain explicit formulas or math, provide relevant conceptual formulas or leave importantFormulas as an empty array [].
 5. Format: Output MUST be strictly valid JSON matching the schema below without markdown fences, prologue, or explanatory prose.
 
 JSON OUTPUT SCHEMA:
@@ -229,7 +255,7 @@ ${documentText}
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -248,7 +274,7 @@ ${documentText}
       );
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.4,
@@ -263,10 +289,11 @@ ${documentText}
     return validatedData;
   } catch (error) {
     console.error("Study material analysis failed:", error.message);
-    if (error.name === "ZodError") {
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
       throw new Error(
-        `Gemini generated study material did not match the expected schema: ${error.errors
-          .map((e) => `${e.path.join(".")}: ${e.message}`)
+        `Gemini generated study material did not match the expected schema: ${issues
+          .map((e) => `${e.path?.join?.(".") || ""}: ${e.message}`)
           .join(", ")}`
       );
     }

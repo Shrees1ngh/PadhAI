@@ -41,12 +41,14 @@ export const generateQuiz = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in generateQuiz controller:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to generate quiz",
-      code: error.code || "QUIZ_GENERATION_ERROR",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to generate quiz"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "QUIZ_GENERATION_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };
@@ -59,6 +61,13 @@ export const saveQuiz = async (req, res) => {
   try {
     const validatedData = saveQuizInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to save quiz attempts.",
+      });
+    }
 
     // Check MongoDB availability — never create fake persistence
     if (!isDbReady) {
@@ -102,8 +111,13 @@ export const saveQuiz = async (req, res) => {
       completedAt: new Date(),
     };
 
-    // Find existing or create new quiz document
-    let quizDoc = await Quiz.findOne({ courseId, moduleIndex, lessonIndex });
+    // Find existing or create new quiz document for this user
+    let quizDoc = await Quiz.findOne({
+      courseId,
+      moduleIndex,
+      lessonIndex,
+      userId: req.user.id,
+    });
 
     if (!quizDoc) {
       quizDoc = new Quiz({
@@ -114,6 +128,8 @@ export const saveQuiz = async (req, res) => {
         questions,
         attempts: [attempt],
         bestScore: score || 0,
+        userId: req.user.id,
+        userEmail: req.user.email || null,
       });
     } else {
       quizDoc.lessonTitle = lessonTitle;
@@ -133,22 +149,31 @@ export const saveQuiz = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in saveQuiz controller:", error.message);
-    const status = error.name === "ZodError" ? 400 : 500;
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = isZod ? 400 : (error.status || 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to save quiz",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input for saving quiz") : (error.message || "Failed to save quiz"),
+      errors: issues.length ? issues : null,
     });
   }
 };
 
 /**
- * Retrieve saved quiz for a lesson from MongoDB
+ * Retrieve saved quiz for a lesson from MongoDB for the authenticated user
  * GET /api/quizzes/:courseId/:moduleIndex/:lessonIndex
  */
 export const getLessonQuiz = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to retrieve quiz.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(503).json({
@@ -164,6 +189,7 @@ export const getLessonQuiz = async (req, res) => {
       courseId,
       moduleIndex: parseInt(moduleIndex, 10),
       lessonIndex: parseInt(lessonIndex, 10),
+      userId: req.user.id,
     });
 
     if (!quiz) {

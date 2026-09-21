@@ -13,12 +13,12 @@ export const generatedFlashcardsSchema = z.object({
 
 export const generateFlashcardsInputSchema = z.object({
   lessonTitle: z.string().min(1, "Lesson title or source title is required"),
-  lessonContent: z.string().min(10, "Source content is required"),
-  courseTopic: z.string().optional(),
+  lessonContent: z.union([z.string(), z.record(z.any())]).optional().default(""),
+  courseTopic: z.string().optional().default(""),
   currentLevel: z.string().optional().default("Intermediate"),
-  courseId: z.string().optional(),
-  moduleIndex: z.number().optional(),
-  lessonIndex: z.number().optional(),
+  courseId: z.string().optional().default(""),
+  moduleIndex: z.number().optional().default(0),
+  lessonIndex: z.number().optional().default(0),
   sourceType: z.enum(["lesson", "study-material"]).optional().default("lesson"),
   apiKey: z.string().optional(),
 });

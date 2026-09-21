@@ -8,6 +8,10 @@ export const getDbStatus = () => {
   return states[mongoose.connection.readyState] || "unknown";
 };
 
+export const isDbReady = () => {
+  return mongoose.connection.readyState === 1;
+};
+
 export const connectDB = async () => {
   if (isConnected || mongoose.connection.readyState === 1) {
     return true;
@@ -15,21 +19,23 @@ export const connectDB = async () => {
 
   const uri = ENV.MONGO_URI?.trim();
   if (!uri) {
-    console.warn("⚠️  MongoDB URI not set in server/.env.");
+    console.warn("⚠️  MongoDB URI not set in server/.env. Running with in-memory store.");
     return false;
   }
 
   try {
     const conn = await mongoose.connect(uri, {
       dbName: "padhai",
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 2500,
+      connectTimeoutMS: 2500,
     });
     isConnected = true;
     console.log(`✅ MongoDB Connected successfully: ${conn.connection.host}`);
     return true;
   } catch (error) {
+    isConnected = false;
     console.warn(`⚠️  MongoDB Connection Warning: ${error.message}`);
-    console.warn(`👉 To enable persistence, ensure MongoDB is running or set MONGO_URI in server/.env`);
+    console.warn(`👉 Using resilient in-memory storage fallback for seamless development.`);
     return false;
   }
 };
@@ -43,3 +49,4 @@ mongoose.connection.on("disconnected", () => {
   isConnected = false;
   console.warn("⚠️  MongoDB connection disconnected.");
 });
+

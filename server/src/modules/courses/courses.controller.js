@@ -4,6 +4,7 @@ import {
   courseSetupInputSchema,
   modifyOutlineInputSchema,
   saveCourseInputSchema,
+  normalizeCourseOutline,
 } from "./course.validator.js";
 import {
   generateCourseOutlineWithGemini,
@@ -45,12 +46,14 @@ export const generateOutline = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in generateOutline:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to generate course outline",
-      code: error.code || "GENERATION_ERROR",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to generate course outline"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "GENERATION_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };
@@ -65,6 +68,7 @@ export const modifyOutline = async (req, res) => {
 
     const validatedInput = modifyOutlineInputSchema.parse({
       ...req.body,
+      modifications: req.body.modifications || req.body.instruction,
       apiKey,
     });
 
@@ -83,12 +87,14 @@ export const modifyOutline = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in modifyOutline:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to modify course outline",
-      code: error.code || "MODIFICATION_ERROR",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to modify course outline"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "MODIFICATION_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };
@@ -101,6 +107,13 @@ export const saveCourse = async (req, res) => {
   try {
     const validatedData = saveCourseInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to save courses.",
+      });
+    }
 
     // Check MongoDB availability — never create fake persistence
     if (!isDbReady) {
@@ -115,16 +128,23 @@ export const saveCourse = async (req, res) => {
       });
     }
 
+    const normalizedOutline = normalizeCourseOutline(
+      validatedData.outline,
+      validatedData.setupParams?.durationDays || validatedData.outline.durationDays || 10
+    );
+
     const newCourse = await Course.create({
-      title: validatedData.outline.title,
-      description: validatedData.outline.description,
-      learningObjectives: validatedData.outline.learningObjectives,
-      estimatedDuration: validatedData.outline.estimatedDuration,
+      title: normalizedOutline.title,
+      description: normalizedOutline.description,
+      learningObjectives: normalizedOutline.learningObjectives,
+      estimatedDuration: normalizedOutline.estimatedDuration,
+      durationDays: normalizedOutline.durationDays,
+      days: normalizedOutline.days,
       setupParams: validatedData.setupParams,
-      modules: validatedData.outline.modules,
+      modules: normalizedOutline.modules,
       status: "SAVED",
-      userId: req.user?.id || null,
-      userEmail: req.user?.email || null,
+      userId: req.user.id,
+      userEmail: req.user.email || null,
     });
 
     res.status(201).json({
@@ -134,22 +154,31 @@ export const saveCourse = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in saveCourse:", error.message);
-    const status = error.name === "ZodError" ? 400 : 500;
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = isZod ? 400 : (error.status || 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to save course",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input for saving course") : (error.message || "Failed to save course"),
+      errors: issues.length ? issues : null,
     });
   }
 };
 
 /**
- * List saved courses
+ * List saved courses belonging exclusively to the authenticated user
  * GET /api/courses
  */
 export const getCourses = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to fetch courses.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(200).json({
@@ -160,10 +189,17 @@ export const getCourses = async (req, res) => {
       });
     }
 
-    const courses = await Course.find()
-      .select("title description estimatedDuration setupParams createdAt modules")
+    const rawCourses = await Course.find({ userId: req.user.id })
+      .select("title description estimatedDuration durationDays days setupParams createdAt modules")
       .sort({ createdAt: -1 })
       .lean();
+
+    const courses = rawCourses.map((c) => {
+      if (!c.days || c.days.length === 0) {
+        return normalizeCourseOutline(c, c.setupParams?.durationDays || c.durationDays || 10);
+      }
+      return c;
+    });
 
     res.status(200).json({
       success: true,
@@ -179,12 +215,19 @@ export const getCourses = async (req, res) => {
 };
 
 /**
- * Fetch a single course by ID
+ * Fetch a single course by ID, ensuring it belongs to the authenticated user
  * GET /api/courses/:id
  */
 export const getCourseById = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to view course.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(503).json({
@@ -194,13 +237,22 @@ export const getCourseById = async (req, res) => {
       });
     }
 
-    const course = await Course.findById(req.params.id);
-    if (!course) {
+    // Strictly check ownership matching userId
+    const rawCourse = await Course.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+    }).lean();
+
+    if (!rawCourse) {
       return res.status(404).json({
         success: false,
         message: "Course not found",
       });
     }
+
+    const course = (!rawCourse.days || rawCourse.days.length === 0)
+      ? normalizeCourseOutline(rawCourse, rawCourse.setupParams?.durationDays || rawCourse.durationDays || 10)
+      : rawCourse;
 
     res.status(200).json({
       success: true,

@@ -4,15 +4,16 @@ import {
   saveQuiz,
   getLessonQuiz,
 } from "./quizzes.controller.js";
-import { optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
 // Quiz generation & attempt submission
-router.post("/generate", generateQuiz);
-router.post("/save", optionalAuthenticateToken, saveQuiz);
+router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateQuiz);
+router.post("/save", authenticateToken, saveQuiz);
 
-// Quiz retrieval for active lesson
-router.get("/:courseId/:moduleIndex/:lessonIndex", optionalAuthenticateToken, getLessonQuiz);
+// Quiz retrieval for active lesson (Isolated per user)
+router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLessonQuiz);
 
 export default router;

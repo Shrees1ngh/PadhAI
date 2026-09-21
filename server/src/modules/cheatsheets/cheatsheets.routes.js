@@ -4,14 +4,15 @@ import {
   saveCheatsheetHandler,
   getLessonCheatsheetHandler,
 } from "./cheatsheets.controller.js";
-import { optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
 // Cheatsheet Generation & Retrieval Endpoints
-router.post("/generate", generateCheatsheetHandler);
-router.post("/save", optionalAuthenticateToken, saveCheatsheetHandler);
-router.get("/:courseId/:moduleIndex/:lessonIndex", optionalAuthenticateToken, getLessonCheatsheetHandler);
+router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateCheatsheetHandler);
+router.post("/save", authenticateToken, saveCheatsheetHandler);
+router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLessonCheatsheetHandler);
 
 // Status route
 router.get("/", (req, res) => {

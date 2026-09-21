@@ -4,14 +4,15 @@ import {
   saveFlashcardsHandler,
   getLessonFlashcardsHandler,
 } from "./flashcards.controller.js";
-import { optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
 // Flashcard Generation & Retrieval Endpoints
-router.post("/generate", generateFlashcardsHandler);
-router.post("/save", optionalAuthenticateToken, saveFlashcardsHandler);
-router.get("/:courseId/:moduleIndex/:lessonIndex", optionalAuthenticateToken, getLessonFlashcardsHandler);
+router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateFlashcardsHandler);
+router.post("/save", authenticateToken, saveFlashcardsHandler);
+router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLessonFlashcardsHandler);
 
 // Status route
 router.get("/", (req, res) => {

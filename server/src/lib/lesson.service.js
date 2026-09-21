@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
 import { lessonContentSchema } from "../modules/lessons/lesson.validator.js";
+import { ENV } from "../config/env.js";
 
 /**
  * Determine Bloom's Taxonomy cognitive stage based on module position.
@@ -125,7 +126,7 @@ EXACT JSON SCHEMA TO SATISFY:
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -138,7 +139,7 @@ EXACT JSON SCHEMA TO SATISFY:
       console.warn("Primary GenAI SDK call fallback in lesson generator:", sdkErr.message);
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
       });
       const result = await model.generateContent(prompt);
@@ -150,9 +151,22 @@ EXACT JSON SCHEMA TO SATISFY:
     return validatedLesson;
   } catch (error) {
     console.error("Lesson generation failed:", error.message);
-    if (error.name === "ZodError") {
+    if (
+      error.message?.includes("429") ||
+      error.message?.includes("Quota exceeded") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
+      const rateLimitErr = new Error(
+        "Gemini API rate limit or daily quota reached. Please add your Gemini API key in Settings to generate real-time lesson content."
+      );
+      rateLimitErr.status = 429;
+      rateLimitErr.code = "QUOTA_EXCEEDED";
+      throw rateLimitErr;
+    }
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
       throw new Error(
-        `AI lesson output did not match expected structure: ${error.errors.map((e) => e.message).join(", ")}`
+        `AI lesson output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
       );
     }
     throw error;

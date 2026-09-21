@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cleanAndParseJson, resolveApiKey } from "./gemini.service.js";
 import { generatedFlashcardsSchema } from "../modules/flashcards/flashcard.validator.js";
+import { ENV } from "../config/env.js";
 
 /**
  * Demo flashcards generator for developer demo mode.
@@ -105,6 +106,13 @@ export const generateFlashcardsWithGemini = async ({
     return generateDemoFlashcards({ lessonTitle });
   }
 
+  let contentText = "";
+  if (typeof lessonContent === "string") {
+    contentText = lessonContent;
+  } else if (lessonContent && typeof lessonContent === "object") {
+    contentText = JSON.stringify(lessonContent, null, 2);
+  }
+
   const prompt = `You are PadhAI's master Spaced Repetition Flashcard Designer.
 
 TASK:
@@ -137,7 +145,7 @@ JSON SCHEMA:
 
 SOURCE MATERIAL CONTENT:
 """
-${lessonContent.slice(0, 75000)}
+${(contentText || lessonTitle).slice(0, 75000)}
 """`;
 
   let rawOutput = "";
@@ -147,7 +155,7 @@ ${lessonContent.slice(0, 75000)}
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -166,7 +174,7 @@ ${lessonContent.slice(0, 75000)}
       );
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.35,
@@ -180,10 +188,19 @@ ${lessonContent.slice(0, 75000)}
     return generatedFlashcardsSchema.parse(parsed);
   } catch (error) {
     console.error("Flashcards generation failed:", error.message);
-    if (error.name === "ZodError") {
+    if (
+      error.message?.includes("429") ||
+      error.message?.includes("Quota exceeded") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
+      console.warn("Flashcards hit rate limit, returning demo flashcards fallback.");
+      return generateDemoFlashcards({ lessonTitle, currentLevel });
+    }
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
       throw new Error(
-        `Gemini generated flashcards did not match the expected schema: ${error.errors
-          .map((e) => `${e.path.join(".")}: ${e.message}`)
+        `Gemini generated flashcards did not match the expected schema: ${issues
+          .map((e) => `${e.path?.join?.(".") || ""}: ${e.message}`)
           .join(", ")}`
       );
     }

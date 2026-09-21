@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 import User from "./user.model.js";
 import { ENV } from "../../config/env.js";
+
 
 /**
  * Mandatory authentication middleware.
@@ -36,17 +38,19 @@ export const authenticateToken = async (req, res, next) => {
       avatar: decoded.avatar || "",
     };
 
-    // Attempt to verify against active database user
+    // Attempt to verify against active database user if DB is connected
     try {
-      const user = await User.findById(decoded.id).select("-passwordHash");
-      if (user) {
-        req.user = {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          avatar: user.avatar || "",
-          authProvider: user.authProvider,
-        };
+      if (mongoose.connection.readyState === 1) {
+        const user = await User.findById(decoded.id).select("-passwordHash");
+        if (user) {
+          req.user = {
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
+            avatar: user.avatar || "",
+            authProvider: user.authProvider,
+          };
+        }
       }
     } catch (dbErr) {
       // Continue with decoded token payload if DB read is transiently unavailable
@@ -102,3 +106,7 @@ export const optionalAuthenticateToken = async (req, res, next) => {
   }
   next();
 };
+
+// Aliases for convenience and backward compatibility
+export const authMiddleware = authenticateToken;
+export const optionalAuthMiddleware = optionalAuthenticateToken;

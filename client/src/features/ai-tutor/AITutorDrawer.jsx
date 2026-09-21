@@ -48,7 +48,7 @@ export const AITutorDrawer = ({
   const inputRef = useRef(null);
 
   // API Key from localStorage
-  const apiKey = localStorage.getItem('padhai_gemini_key') || 'DEMO_MODE';
+  const apiKey = localStorage.getItem('padhai_gemini_api_key') || '';
 
   // Initialize/Reset conversation when lessonKey changes
   useEffect(() => {

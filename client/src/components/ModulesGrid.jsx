@@ -112,9 +112,6 @@ export const ModulesGrid = ({ onSelectModule }) => {
     <section id="modules" className="py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-xs font-semibold text-purple-300 uppercase tracking-wider mb-3">
-            System Architecture
-          </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
             10 Modular Pillars of PadhAI
           </h2>

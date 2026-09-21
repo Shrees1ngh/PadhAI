@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
 import { quizOutputSchema } from "../modules/quizzes/quiz.validator.js";
+import { ENV } from "../config/env.js";
 
 /**
  * Generate a 5-question conceptual quiz based on lesson content using Gemini.
@@ -29,21 +30,26 @@ export const generateQuizWithGemini = async ({
   }
 
   // Build condensed lesson context string
-  const contextParts = [];
-  if (lessonContent.introduction) {
-    contextParts.push(`INTRODUCTION:\n${lessonContent.introduction.slice(0, 600)}`);
+  let lessonContext = "";
+  if (typeof lessonContent === "string") {
+    lessonContext = lessonContent.slice(0, 3000);
+  } else if (lessonContent && typeof lessonContent === "object") {
+    const contextParts = [];
+    if (lessonContent.introduction) {
+      contextParts.push(`INTRODUCTION:\n${lessonContent.introduction.slice(0, 600)}`);
+    }
+    if (lessonContent.explanation) {
+      contextParts.push(`CORE EXPLANATION:\n${lessonContent.explanation.slice(0, 1500)}`);
+    }
+    if (lessonContent.keyConcepts && lessonContent.keyConcepts.length > 0) {
+      contextParts.push(`KEY CONCEPTS:\n${lessonContent.keyConcepts.join("\n")}`);
+    }
+    if (lessonContent.commonMistakes && lessonContent.commonMistakes.length > 0) {
+      contextParts.push(`COMMON MISTAKES & MISCONCEPTIONS:\n${lessonContent.commonMistakes.join("\n")}`);
+    }
+    lessonContext = contextParts.join("\n\n");
   }
-  if (lessonContent.explanation) {
-    contextParts.push(`CORE EXPLANATION:\n${lessonContent.explanation.slice(0, 1500)}`);
-  }
-  if (lessonContent.keyConcepts && lessonContent.keyConcepts.length > 0) {
-    contextParts.push(`KEY CONCEPTS:\n${lessonContent.keyConcepts.join("\n")}`);
-  }
-  if (lessonContent.commonMistakes && lessonContent.commonMistakes.length > 0) {
-    contextParts.push(`COMMON MISTAKES & MISCONCEPTIONS:\n${lessonContent.commonMistakes.join("\n")}`);
-  }
-
-  const lessonContext = contextParts.join("\n\n") || `Lesson on ${lessonTitle}`;
+  lessonContext = lessonContext || `Lesson on ${lessonTitle}`;
 
   const prompt = `You are PadhAI's master educational assessment specialist.
 Your task is to generate exactly 5 multiple-choice quiz questions strictly based on the provided lesson content:
@@ -91,7 +97,7 @@ EXACT JSON SCHEMA TO SATISFY:
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -104,7 +110,7 @@ EXACT JSON SCHEMA TO SATISFY:
       console.warn("Primary GenAI SDK call fallback in quiz generator:", sdkErr.message);
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.5 },
       });
       const result = await model.generateContent(prompt);
@@ -122,9 +128,22 @@ EXACT JSON SCHEMA TO SATISFY:
     return validatedQuiz;
   } catch (error) {
     console.error("Quiz generation failed:", error.message);
-    if (error.name === "ZodError") {
+    if (
+      error.message?.includes("429") ||
+      error.message?.includes("Quota exceeded") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
+      const rateLimitErr = new Error(
+        "Gemini API rate limit or daily quota reached. Please add your Gemini API key in Settings to generate real-time quizzes."
+      );
+      rateLimitErr.status = 429;
+      rateLimitErr.code = "QUOTA_EXCEEDED";
+      throw rateLimitErr;
+    }
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
       throw new Error(
-        `AI quiz output did not match expected structure: ${error.errors.map((e) => e.message).join(", ")}`
+        `AI quiz output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
       );
     }
     throw error;

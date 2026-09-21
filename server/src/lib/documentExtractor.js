@@ -194,8 +194,13 @@ export const extractDocumentText = async (buffer, originalname = "", mimetype = 
     .trim();
 
   if (cleanedText.length < 15) {
+    if (detectedType === "pdf") {
+      throw new Error(
+        "Could not extract readable text from this PDF. The document appears to be an image-only or scanned PDF, which requires OCR (Optical Character Recognition) to extract text. Please upload a PDF with selectable text or a plain text/markdown file."
+      );
+    }
     throw new Error(
-      "Extracted document text is too short or empty. Please ensure your document contains text content (scanned image-only PDFs/PPTs without OCR cannot be read directly)."
+      "Extracted document text is too short or empty. Please ensure your uploaded file contains readable text content."
     );
   }
 

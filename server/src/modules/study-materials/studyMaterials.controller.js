@@ -15,6 +15,7 @@ export const analyzeStudyMaterialHandler = async (req, res, next) => {
 
     const { originalname, mimetype, size, buffer } = req.file;
     const learnerLevel = req.body?.learnerLevel || "Intermediate";
+    const action = req.body?.action || "study-material";
     const customApiKey = req.headers["x-gemini-key"] || req.body?.apiKey;
 
     // Validate learner level
@@ -42,12 +43,14 @@ export const analyzeStudyMaterialHandler = async (req, res, next) => {
       filename: originalname,
       fileType: detectedType,
       learnerLevel: normalizedLevel,
+      action,
       apiKey: customApiKey,
     });
 
     return res.status(200).json({
       success: true,
       data: analysis,
+      analysis: analysis,
       metadata: {
         filename: originalname,
         fileSize: size,
@@ -55,6 +58,7 @@ export const analyzeStudyMaterialHandler = async (req, res, next) => {
         charCount,
         wordCount,
         learnerLevel: normalizedLevel,
+        action,
       },
     });
   } catch (err) {

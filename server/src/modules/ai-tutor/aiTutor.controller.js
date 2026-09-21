@@ -8,9 +8,13 @@ import { chatWithAITutor } from "../../lib/aiTutor.service.js";
 export const chatWithTutor = async (req, res) => {
   try {
     const apiKey = req.headers["x-gemini-key"] || req.body.apiKey;
+    const conversationHistory = req.body.conversationHistory || req.body.history || [];
+    const learnerLevel = req.body.learnerLevel || req.body.currentLevel || req.body.level || "Beginner";
 
     const validatedInput = tutorChatInputSchema.parse({
       ...req.body,
+      learnerLevel,
+      conversationHistory,
       apiKey,
     });
 
@@ -36,15 +40,14 @@ export const chatWithTutor = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in chatWithTutor controller:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to generate AI Tutor response",
-      code: error.code || "AI_TUTOR_ERROR",
-      errors: error.errors || null,
-      answer: "I encountered an error while processing your question. Please try again in a moment.",
-      relatedConcepts: [],
-      suggestedFollowUps: [],
+      message: isZod ? (issues[0]?.message || "Invalid input for AI Tutor chat") : (error.message || "Failed to generate AI Tutor response"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "AI_TUTOR_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };

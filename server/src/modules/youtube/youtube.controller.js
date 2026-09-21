@@ -35,11 +35,14 @@ export const searchVideos = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in searchVideos controller:", error.message);
-    const status = error.name === "ZodError" ? 400 : 500;
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to search educational videos",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid query parameters") : (error.message || "Failed to search educational videos"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "YOUTUBE_SEARCH_ERROR"),
+      errors: issues.length ? issues : null,
       videos: [],
     });
   }

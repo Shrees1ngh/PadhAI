@@ -74,25 +74,39 @@ export const ProgressDashboard = ({ onContinueLearning }) => {
             totalLessonsCount: totalLessons,
             totalQuestionsAnswered: totalQuestionsAnswered || 0,
             streak: overallStreak?.current || 0,
-            strongTopics: allStrongTopics.length > 0 ? allStrongTopics : DEMO_DATA.strongTopics,
-            weakTopics: allWeakTopics.length > 0 ? allWeakTopics : DEMO_DATA.weakTopics,
+            strongTopics: allStrongTopics,
+            weakTopics: allWeakTopics,
             masteryIndex,
             courses: courses || [],
           });
-
-          // If we got data but user has no courses, show demo-like state
-          if (!courses || courses.length === 0) {
-            setIsUsingDemo(true);
-            setProgressData(DEMO_DATA);
-          }
+          setIsUsingDemo(false);
         } else {
-          setIsUsingDemo(true);
-          setProgressData(DEMO_DATA);
+          setProgressData({
+            completionPercentage: 0,
+            totalLessonsCompleted: 0,
+            totalLessonsCount: 0,
+            totalQuestionsAnswered: 0,
+            streak: 0,
+            strongTopics: [],
+            weakTopics: [],
+            masteryIndex: 0,
+            courses: [],
+          });
+          setIsUsingDemo(false);
         }
       } catch {
-        // API unavailable (no auth, network error, etc.) → show demo data
-        setIsUsingDemo(true);
-        setProgressData(DEMO_DATA);
+        setProgressData({
+          completionPercentage: 0,
+          totalLessonsCompleted: 0,
+          totalLessonsCount: 0,
+          totalQuestionsAnswered: 0,
+          streak: 0,
+          strongTopics: [],
+          weakTopics: [],
+          masteryIndex: 0,
+          courses: [],
+        });
+        setIsUsingDemo(false);
       } finally {
         setIsLoading(false);
       }

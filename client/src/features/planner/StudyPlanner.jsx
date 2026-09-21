@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar,
@@ -9,120 +9,149 @@ import {
   Sparkles,
   BookOpen,
   Circle,
-  PlayCircle
+  PlayCircle,
+  Plus,
+  Check
 } from 'lucide-react';
 
-const SAMPLE_DAYS = [
-  { day: 1, topic: 'Time and Space Complexity Analysis', status: 'completed' },
-  { day: 2, topic: 'Arrays & Memory Layout Mechanics', status: 'in-progress' },
-  { day: 3, topic: 'Singly and Doubly Linked Lists', status: 'not-started' },
-  { day: 4, topic: 'Stacks: Monotonic Stack & Expression Parsing', status: 'not-started' },
-  { day: 5, topic: 'Queues & Deques: Sliding Window Problems', status: 'not-started' },
-  { day: 6, topic: 'Recursion Fundamentals & Call Stack Tracing', status: 'not-started' },
-  { day: 7, topic: 'Backtracking: N-Queens & Subsets', status: 'not-started' },
-  { day: 8, topic: 'Binary Search & Monotonic Search Spaces', status: 'not-started' },
-  { day: 9, topic: 'Trees: Binary Trees & Tree Traversals', status: 'not-started' },
-  { day: 10, topic: 'Binary Search Trees (BST) & Validation', status: 'not-started' },
-];
+export const StudyPlanner = ({
+  activeCourse = null,
+  onSelectTopic,
+  onCreateCourse,
+  onSelectLesson,
+}) => {
+  // Derive days directly from activeCourse.days or fallback to sequential module lessons
+  const planDays = [];
+  if (activeCourse?.days && activeCourse.days.length > 0) {
+    activeCourse.days.forEach((d) => {
+      planDays.push({
+        day: d.day,
+        title: d.title,
+        moduleTitle: d.moduleTitle || 'Core Curriculum',
+        objective: d.learningObjective,
+        lessons: d.lessons || [],
+      });
+    });
+  } else if (activeCourse?.modules) {
+    let dayCount = 1;
+    activeCourse.modules.forEach((mod) => {
+      mod.lessons?.forEach((less) => {
+        planDays.push({
+          day: dayCount++,
+          title: less.title,
+          moduleTitle: mod.title,
+          objective: less.learningObjective,
+          lessons: [less],
+        });
+      });
+    });
+  }
 
-export const StudyPlanner = ({ onSelectTopic }) => {
-  const [days, setDays] = useState(SAMPLE_DAYS);
+  if (!activeCourse || planDays.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto py-12">
+        <div className="rounded-3xl p-10 bg-[#0d1322] border border-white/10 shadow-2xl text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xl font-bold text-white">No Active Study Plan</h3>
+            <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+              Create a personalized multi-day course to automatically generate a day-by-day study roadmap.
+            </p>
+          </div>
+          <button
+            onClick={onCreateCourse}
+            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 inline-flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create a Course</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const durationDays = activeCourse?.durationDays || activeCourse?.setupParams?.durationDays || planDays.length;
+  const pace = activeCourse?.setupParams?.dailyStudyTime || '2 hours/day';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      
       {/* Header Container */}
       <div className="rounded-3xl p-6 sm:p-8 bg-[#0d1322] border border-white/10 shadow-2xl space-y-6">
-        
         {/* Title row */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center space-x-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              {activeCourse.setupParams?.currentLevel || 'Beginner'} • {durationDays} Days Pace
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-2 flex items-center space-x-2.5">
               <Calendar className="w-5 h-5 text-indigo-400" />
-              <span>30-Day Study Plan</span>
+              <span>{activeCourse.title || activeCourse.topic} — Day-Wise Schedule</span>
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Data Structures and Algorithms • 2 hours/day Pace
+              Target Duration: {durationDays} Days • Daily Commitment: {pace}
             </p>
           </div>
 
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-            Day 2 of 30 (Today)
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 self-start sm:self-auto">
+            {planDays.length} Days Planned
           </span>
         </div>
 
         {/* Schedule List */}
         <div className="space-y-3">
-          {days.map((item) => (
+          {planDays.map((item, dIdx) => (
             <div
-              key={item.day}
-              onClick={() => onSelectTopic && onSelectTopic(item.topic)}
-              className={`p-4 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
-                item.status === 'in-progress'
-                  ? 'bg-indigo-600/20 border-indigo-500/50 text-white shadow-lg shadow-indigo-600/10'
-                  : item.status === 'completed'
-                  ? 'bg-emerald-500/5 border-emerald-500/20 text-slate-300'
-                  : 'bg-[#080c14] border-white/5 text-slate-400 hover:border-white/15 hover:text-white'
-              }`}
+              key={item.day || dIdx}
+              onClick={() => {
+                if (onSelectLesson) {
+                  onSelectLesson(0, 0); // Open active lesson viewer
+                } else if (onSelectTopic) {
+                  onSelectTopic(item.title);
+                }
+              }}
+              className="p-4 rounded-2xl border border-white/5 hover:border-indigo-500/40 bg-[#080c14] hover:bg-[#0e1424] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group"
             >
-              <div className="flex items-center space-x-4">
-                <div
-                  className={`w-12 text-center py-1 rounded-lg text-xs font-mono font-bold ${
-                    item.status === 'in-progress'
-                      ? 'bg-indigo-500 text-white'
-                      : item.status === 'completed'
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-white/5 text-slate-400'
-                  }`}
-                >
+              <div className="flex items-start space-x-3.5 min-w-0">
+                <span className="px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0 mt-0.5">
                   Day {item.day}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                    {item.title}
+                  </p>
+                  {item.objective && (
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      {item.objective}
+                    </p>
+                  )}
+                  {item.lessons?.length > 1 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {item.lessons.map((les, lIdx) => (
+                        <span key={lIdx} className="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/5 text-slate-300">
+                          {les.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                <span className="text-xs sm:text-sm font-semibold">{item.topic}</span>
               </div>
 
-              <div>
-                {item.status === 'completed' && (
-                  <span className="flex items-center space-x-1.5 text-xs font-bold text-emerald-400">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Completed</span>
-                  </span>
-                )}
-                {item.status === 'in-progress' && (
-                  <span className="flex items-center space-x-1.5 text-xs font-bold text-indigo-300">
-                    <ArrowRight className="w-4 h-4" />
-                    <span>In Progress</span>
-                  </span>
-                )}
-                {item.status === 'not-started' && (
-                  <span className="flex items-center space-x-1.5 text-xs font-medium text-slate-400">
-                    <Circle className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Not started</span>
-                  </span>
-                )}
+              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                <span className="text-[10px] text-indigo-400 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                  Start Day {item.day}
+                </span>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors shrink-0" />
               </div>
             </div>
           ))}
         </div>
-
-        {/* Today's Goal Highlight Alert Box (Screen 10 footer) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-indigo-500/10 border border-amber-500/30 flex items-center space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
-            <Target className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
-              Today's goal
-            </p>
-            <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-              Complete Arrays lesson + 5 quiz questions.
-            </p>
-          </div>
-        </div>
-
       </div>
     </div>
   );
 };
 
 export default StudyPlanner;
+
+

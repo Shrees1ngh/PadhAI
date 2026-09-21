@@ -1,90 +1,242 @@
 import React, { useState } from 'react';
-import { Settings, Key, Shield, User, Bell, Check, Database, Sparkles } from 'lucide-react';
+import { 
+  Settings, 
+  Key, 
+  Shield, 
+  User, 
+  Check, 
+  Sparkles, 
+  ExternalLink, 
+  Eye, 
+  EyeOff, 
+  Trash2, 
+  Lock,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 export const SettingsView = () => {
   const { currentUser, isAuthenticated, openAuthModal } = useAuth();
   const [apiKey, setApiKey] = useState(
-    () => localStorage.getItem('padhai_gemini_key') || ''
+    () => localStorage.getItem('padhai_gemini_api_key') || ''
   );
-  const [saved, setSaved] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // 'saved' | 'removed' | null
 
   const handleSaveKey = (e) => {
     e.preventDefault();
-    localStorage.setItem('padhai_gemini_key', apiKey.trim());
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
+      handleRemoveKey();
+      return;
+    }
+    localStorage.setItem('padhai_gemini_api_key', trimmed);
+    setSaveStatus('saved');
+    setTimeout(() => setSaveStatus(null), 3000);
   };
+
+  const handleRemoveKey = () => {
+    localStorage.removeItem('padhai_gemini_api_key');
+    setApiKey('');
+    setSaveStatus('removed');
+    setTimeout(() => setSaveStatus(null), 3000);
+  };
+
+  const isCustomKeyActive = Boolean(localStorage.getItem('padhai_gemini_api_key'));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="rounded-3xl p-6 sm:p-8 bg-[#0d1322] border border-white/10 shadow-2xl space-y-6">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center space-x-2.5">
-            <Settings className="w-5 h-5 text-indigo-400" />
-            <span>Platform Settings</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Manage your AI model configurations, account preferences, and persistence settings.
-          </p>
-        </div>
-
-        {/* Account Status Card */}
-        <div className="p-5 rounded-2xl bg-[#080c14] border border-white/5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <User className="w-5 h-5 text-indigo-400" />
-              <div>
-                <h4 className="text-xs font-bold text-white">Account Status</h4>
-                <p className="text-[11px] text-slate-400">
-                  {isAuthenticated && currentUser ? `Logged in as ${currentUser.name} (${currentUser.email})` : 'Guest Session (Local Mode)'}
-                </p>
-              </div>
-            </div>
-            {!isAuthenticated && (
-              <button
-                onClick={() => openAuthModal('signup')}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all"
-              >
-                Sign In / Register
-              </button>
-            )}
+      
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+            <Settings className="w-5 h-5" />
           </div>
-        </div>
+          <span>Account & Platform Settings</span>
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          Configure your personal Gemini AI API key, account details, and learning preferences.
+        </p>
+      </div>
 
-        {/* Optional Custom Gemini API Key */}
-        <form onSubmit={handleSaveKey} className="p-5 rounded-2xl bg-[#080c14] border border-white/5 space-y-3">
-          <div className="flex items-center space-x-3">
-            <Key className="w-5 h-5 text-amber-400" />
-            <div>
-              <h4 className="text-xs font-bold text-white">Custom Gemini API Key (Optional)</h4>
-              <p className="text-[11px] text-slate-400">
-                Override server API key with your own Google AI Studio key for higher rate limits.
-              </p>
-            </div>
+      {/* If Not Authenticated: Prompt User to Sign In */}
+      {!isAuthenticated ? (
+        <div className="rounded-3xl p-8 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
           </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIzaSy..."
-              className="flex-1 bg-[#0b0f19] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
-            />
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h3 className="text-xl font-bold text-white">Sign In Required</h3>
+            <p className="text-xs sm:text-sm text-slate-400">
+              Please sign in or create an account to configure your custom Gemini API key and manage your personalized AI learning settings.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
             <button
-              type="submit"
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center space-x-1.5"
+              onClick={() => openAuthModal('login')}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30"
             >
-              {saved ? <Check className="w-3.5 h-3.5" /> : null}
-              <span>{saved ? 'Saved' : 'Save Key'}</span>
+              Sign In
+            </button>
+            <button
+              onClick={() => openAuthModal('signup')}
+              className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-bold transition-all"
+            >
+              Create Account
             </button>
           </div>
-        </form>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          
+          {/* User Profile Card */}
+          <div className="rounded-3xl p-6 bg-[#0d1322] border border-white/10 shadow-xl space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+              <User className="w-4 h-4 text-indigo-400" />
+              <span>Learner Profile</span>
+            </h3>
+            
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-[#080c14] border border-white/5">
+              <div className="flex items-center space-x-3.5">
+                {currentUser?.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-12 h-12 rounded-2xl object-cover border border-indigo-400/40 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-bold text-base flex items-center justify-center shrink-0">
+                    {currentUser?.name ? currentUser.name.substring(0, 2).toUpperCase() : 'U'}
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-bold text-white">{currentUser?.name}</p>
+                  <p className="text-xs text-slate-400">{currentUser?.email}</p>
+                  <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    {currentUser?.authProvider === 'google' ? 'Google Authenticated' : 'Registered Learner'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-      </div>
+          {/* Gemini API Key Configuration Section */}
+          <div className="rounded-3xl p-6 sm:p-8 bg-[#0d1322] border border-white/10 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                  <Key className="w-4 h-4 text-amber-400" />
+                  <span>Google Gemini API Key</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Add your personal Gemini API key to unlock higher rate limits for AI Tutor & Course generation.
+                </p>
+              </div>
+
+              {/* Status Pill */}
+              <div className="shrink-0">
+                {isCustomKeyActive ? (
+                  <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Personal Key Active</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Default Server Key</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Notification alert */}
+            {saveStatus === 'saved' && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Gemini API Key successfully saved and activated in your browser!</span>
+              </div>
+            )}
+
+            {saveStatus === 'removed' && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>Custom API Key removed. Reverted to default server configuration.</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSaveKey} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Enter Gemini API Key</span>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-400 hover:text-indigo-300 transition-colors inline-flex items-center space-x-1 text-[11px] font-semibold"
+                  >
+                    <span>Get free key from Google AI Studio</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </label>
+
+                <div className="relative flex items-center">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full bg-[#080c14] border border-white/10 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono pr-24"
+                  />
+                  
+                  <div className="absolute right-2 flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
+                      className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition-colors"
+                      title={showKey ? 'Hide key' : 'Show key'}
+                    >
+                      {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+
+                    {apiKey && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveKey}
+                        className="p-2 text-rose-400 hover:text-rose-300 rounded-xl hover:bg-rose-500/10 transition-colors"
+                        title="Remove key"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <p className="text-[11px] text-slate-400">
+                  Your key is saved only in your local browser and sent directly with AI requests.
+                </p>
+
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center space-x-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save Key</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };
 
 export default SettingsView;
+

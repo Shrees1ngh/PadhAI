@@ -31,6 +31,29 @@ const moduleSchema = new mongoose.Schema({
   lessons: [lessonSchema],
 });
 
+const courseDaySchema = new mongoose.Schema({
+  day: {
+    type: Number,
+    required: [true, "Day number is required"],
+  },
+  title: {
+    type: String,
+    required: [true, "Day title is required"],
+    trim: true,
+  },
+  learningObjective: {
+    type: String,
+    default: "Master key concepts for today's curriculum",
+    trim: true,
+  },
+  moduleTitle: {
+    type: String,
+    default: "Core Module",
+    trim: true,
+  },
+  lessons: [lessonSchema],
+});
+
 const courseSchema = new mongoose.Schema(
   {
     title: {
@@ -54,6 +77,14 @@ const courseSchema = new mongoose.Schema(
     estimatedDuration: {
       type: String,
       required: [true, "Estimated duration is required"],
+    },
+    durationDays: {
+      type: Number,
+      default: 10,
+    },
+    days: {
+      type: [courseDaySchema],
+      default: [],
     },
     setupParams: {
       topic: { type: String, required: true },

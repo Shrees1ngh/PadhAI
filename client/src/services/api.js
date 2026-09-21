@@ -8,12 +8,18 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to attach JWT authorization header
+// Request interceptor to attach JWT authorization and custom Gemini API key headers
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('padhai_auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  const customGeminiKey = localStorage.getItem('padhai_gemini_api_key');
+  if (customGeminiKey && customGeminiKey.trim()) {
+    config.headers['x-gemini-key'] = customGeminiKey.trim();
+  }
+
   return config;
 });
 
@@ -43,11 +49,12 @@ export const generateCourseOutline = async (setupParams, apiKey) => {
   return await api.post('/courses/generate-outline', setupParams, { headers });
 };
 
-export const modifyCourseOutline = async ({ currentOutline, modifications, setupParams }, apiKey) => {
+export const modifyCourseOutline = async ({ currentOutline, modifications, instruction, setupParams }, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
+  const modText = modifications || instruction;
   return await api.post(
     '/courses/modify-outline',
-    { currentOutline, modifications, setupParams },
+    { currentOutline, modifications: modText, setupParams },
     { headers }
   );
 };
@@ -62,7 +69,11 @@ export const fetchCourses = async () => {
 
 export const generateLessonContent = async (payload, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/lessons/generate', payload, { headers });
+  const normalizedPayload = {
+    ...payload,
+    currentLevel: payload.currentLevel || payload.learnerLevel || 'Beginner',
+  };
+  return await api.post('/lessons/generate', normalizedPayload, { headers });
 };
 
 export const saveLessonContent = async (payload) => {
@@ -210,4 +221,26 @@ export const completeTopicProgress = async ({ courseId, moduleIndex, lessonIndex
   return await api.post('/progress/complete-topic', { courseId, moduleIndex, lessonIndex });
 };
 
+// ==================================
+// QUICK LEARN & TOPICS API SERVICES
+// ==================================
+
+export const generateQuickLearnTopic = async (payload, apiKey) => {
+  const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
+  return await api.post('/topics/quick-learn', payload, { headers });
+};
+
+export const saveTopic = async (payload) => {
+  return await api.post('/topics/save', payload);
+};
+
+export const fetchSavedTopics = async () => {
+  return await api.get('/topics/saved');
+};
+
+export const completeSavedTopic = async (topicId, payload = {}) => {
+  return await api.patch(`/topics/${topicId}/complete`, payload);
+};
+
 export default api;
+

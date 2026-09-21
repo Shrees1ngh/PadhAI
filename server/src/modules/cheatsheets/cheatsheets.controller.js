@@ -43,12 +43,14 @@ export const generateCheatsheetHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in generateCheatsheetHandler:", error.message);
-    const status = error.status || (error.name === "ZodError" ? 400 : 500);
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to generate cheatsheet",
-      code: error.code || "CHEATSHEET_GENERATION_ERROR",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to generate cheatsheet"),
+      code: error.code || (isZod ? "VALIDATION_ERROR" : "CHEATSHEET_GENERATION_ERROR"),
+      errors: issues.length ? issues : null,
     });
   }
 };
@@ -61,6 +63,13 @@ export const saveCheatsheetHandler = async (req, res) => {
   try {
     const validatedInput = saveCheatsheetInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to save cheatsheet.",
+      });
+    }
 
     // Check MongoDB availability — never create fake persistence
     if (!isDbReady) {
@@ -84,8 +93,8 @@ export const saveCheatsheetHandler = async (req, res) => {
     } = validatedInput;
 
     const query = courseId
-      ? { courseId, moduleIndex, lessonIndex }
-      : { lessonTitle, sourceType };
+      ? { courseId, moduleIndex, lessonIndex, userId: req.user.id }
+      : { lessonTitle, sourceType, userId: req.user.id };
 
     let doc = await Cheatsheet.findOne(query);
 
@@ -106,8 +115,8 @@ export const saveCheatsheetHandler = async (req, res) => {
         examples: cheatsheet.examples,
         commonMistakes: cheatsheet.commonMistakes,
         quickRevisionPoints: cheatsheet.quickRevisionPoints,
-        userId: req.user?.id || null,
-        userEmail: req.user?.email || null,
+        userId: req.user.id,
+        userEmail: req.user.email || null,
       });
     } else {
       doc.title = cheatsheet.title || lessonTitle;
@@ -120,10 +129,8 @@ export const saveCheatsheetHandler = async (req, res) => {
       doc.examples = cheatsheet.examples;
       doc.commonMistakes = cheatsheet.commonMistakes;
       doc.quickRevisionPoints = cheatsheet.quickRevisionPoints;
-      if (req.user?.id) {
-        doc.userId = req.user.id;
-        doc.userEmail = req.user.email;
-      }
+      doc.userId = req.user.id;
+      doc.userEmail = req.user.email || null;
     }
 
     await doc.save();
@@ -135,11 +142,13 @@ export const saveCheatsheetHandler = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in saveCheatsheetHandler:", error.message);
-    const status = error.name === "ZodError" ? 400 : 500;
+    const isZod = error.name === "ZodError" || Boolean(error.issues);
+    const issues = error.issues || error.errors || [];
+    const status = isZod ? 400 : (error.status || 500);
     res.status(status).json({
       success: false,
-      message: error.message || "Failed to save cheatsheet",
-      errors: error.errors || null,
+      message: isZod ? (issues[0]?.message || "Invalid input for saving cheatsheet") : (error.message || "Failed to save cheatsheet"),
+      errors: issues.length ? issues : null,
     });
   }
 };
@@ -151,6 +160,13 @@ export const saveCheatsheetHandler = async (req, res) => {
 export const getLessonCheatsheetHandler = async (req, res) => {
   try {
     const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to view cheatsheet.",
+      });
+    }
 
     if (!isDbReady) {
       return res.status(503).json({
@@ -166,6 +182,7 @@ export const getLessonCheatsheetHandler = async (req, res) => {
       courseId,
       moduleIndex: parseInt(moduleIndex, 10),
       lessonIndex: parseInt(lessonIndex, 10),
+      userId: req.user.id,
     });
 
     if (!doc) {

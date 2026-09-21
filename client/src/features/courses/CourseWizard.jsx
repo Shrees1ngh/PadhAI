@@ -34,10 +34,12 @@ const GOAL_OPTIONS = [
 ];
 
 const DURATION_OPTIONS = [
-  { value: 14, label: '14 days' },
-  { value: 30, label: '30 days' },
-  { value: 60, label: '60 days' },
-  { value: 90, label: '90 days' },
+  { value: 7, label: '7 days (Express Crash Course)' },
+  { value: 10, label: '10 days (Fast Track)' },
+  { value: 14, label: '14 days (2 Weeks)' },
+  { value: 30, label: '30 days (1 Month In-Depth)' },
+  { value: 60, label: '60 days (2 Months Comprehensive)' },
+  { value: 90, label: '90 days (Quarterly Mastery)' },
 ];
 
 const DAILY_TIME_OPTIONS = [
@@ -135,10 +137,20 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
     setModifying(true);
     setError(null);
 
+    const setupParams = {
+      topic: formData.topic.trim(),
+      learningGoal: formData.learningGoal,
+      currentLevel: formData.currentLevel,
+      durationDays: Number(formData.durationDays),
+      dailyStudyTime: formData.dailyStudyTime,
+      learningPreference: formData.learningPreferences.join(', '),
+    };
+
     try {
       const res = await modifyCourseOutline({
         currentOutline: outline,
-        instruction: modificationPrompt.trim(),
+        modifications: modificationPrompt.trim(),
+        setupParams,
       });
 
       if (res?.success && res.outline) {
@@ -162,31 +174,24 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
     setSaving(true);
     setError(null);
 
-    try {
-      const coursePayload = {
-        title: outline.title || formData.topic,
-        topic: formData.topic,
-        level: formData.currentLevel,
-        durationWeeks: Math.ceil(formData.durationDays / 7),
-        overview: outline.overview || '',
-        prerequisites: outline.prerequisites || [],
-        targetAudience: outline.targetAudience || '',
-        modules: outline.modules || [],
-        setupParams: {
-          topic: formData.topic,
-          learningGoal: formData.learningGoal,
-          currentLevel: formData.currentLevel,
-          durationDays: formData.durationDays,
-          dailyStudyTime: formData.dailyStudyTime,
-          learningPreference: formData.learningPreferences.join(', '),
-        },
-      };
+    const setupParams = {
+      topic: formData.topic.trim(),
+      learningGoal: formData.learningGoal,
+      currentLevel: formData.currentLevel,
+      durationDays: Number(formData.durationDays),
+      dailyStudyTime: formData.dailyStudyTime,
+      learningPreference: formData.learningPreferences.join(', '),
+    };
 
-      const res = await saveCourse(coursePayload);
-      if (res?.success) {
+    try {
+      const res = await saveCourse({
+        outline,
+        setupParams,
+      });
+      if (res?.success && res.course) {
         setSaveResult({
           saved: true,
-          courseId: res.course?._id,
+          courseId: res.course._id || res.course.id,
         });
         if (onCourseSaved) onCourseSaved(res.course);
       } else {
@@ -194,8 +199,8 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
       }
     } catch (err) {
       console.warn('Save course notice:', err);
-      // Still allow learning even if offline
       setSaveResult({ saved: false, message: err.message });
+      setError(err.message || 'Failed to save course.');
     } finally {
       setSaving(false);
     }
@@ -446,45 +451,152 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    handleSaveCourse();
-                    onStartLearning(outline, formData);
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    setError(null);
+                    try {
+                      const setupParams = {
+                        topic: formData.topic.trim(),
+                        learningGoal: formData.learningGoal,
+                        currentLevel: formData.currentLevel,
+                        durationDays: Number(formData.durationDays),
+                        dailyStudyTime: formData.dailyStudyTime,
+                        learningPreference: formData.learningPreferences.join(', '),
+                      };
+                      const res = await saveCourse({
+                        outline,
+                        setupParams,
+                      });
+                      if (res?.success && res.course) {
+                        setSaveResult({
+                          saved: true,
+                          courseId: res.course._id || res.course.id,
+                        });
+                        if (onCourseSaved) onCourseSaved(res.course);
+                        if (onStartLearning) onStartLearning(res.course, formData);
+                      } else {
+                        // Fallback to local outline if network error
+                        if (onStartLearning) onStartLearning(outline, formData);
+                      }
+                    } catch (err) {
+                      console.warn('Save on start error:', err);
+                      // Still allow learning even if save fails, but notify
+                      if (onStartLearning) onStartLearning(outline, formData);
+                    } finally {
+                      setSaving(false);
+                    }
                   }}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-xs font-black text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-xs font-black text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2 disabled:opacity-50"
                 >
-                  <span>Start Learning Course</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {saving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving & Launching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Start Learning Course</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
 
-            {/* Modules Scaffolding Preview */}
-            <div className="space-y-4">
-              {outline.modules?.map((mod, mIdx) => (
-                <div key={mIdx} className="rounded-2xl p-5 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30">
-                        {mIdx + 1}
-                      </div>
-                      <h4 className="text-sm font-bold text-white">{mod.title}</h4>
-                    </div>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      {mod.lessons?.length || 0} Lessons
-                    </span>
-                  </div>
+            {/* View Switcher: Day Plan vs Modules */}
+            <div className="flex items-center space-x-3 border-b border-white/5 pb-2">
+              <button
+                type="button"
+                onClick={() => setActiveModuleIndex(-1)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  activeModuleIndex === -1 || !outline.modules?.length
+                    ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Day-Wise Plan ({outline.days?.length || outline.durationDays || formData.durationDays} Days)</span>
+              </button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-                    {mod.lessons?.map((les, lIdx) => (
-                      <div key={lIdx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                        <span className="truncate">{les.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={() => setActiveModuleIndex(0)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  activeModuleIndex >= 0 && outline.modules?.length
+                    ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Modules ({outline.modules?.length || 0})</span>
+              </button>
             </div>
+
+            {/* Day Plan Preview */}
+            {(activeModuleIndex === -1 || !outline.modules?.length) && (
+              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                {(outline.days && outline.days.length > 0 ? outline.days : []).map((dayItem, dIdx) => (
+                  <div key={dIdx} className="rounded-2xl p-4 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30 shrink-0">
+                          {dayItem.day || dIdx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-white truncate">{dayItem.title}</h4>
+                          {dayItem.moduleTitle && (
+                            <span className="text-[10px] text-slate-400">{dayItem.moduleTitle}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium shrink-0 ml-2">
+                        {dayItem.lessons?.length || 0} Lessons
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      {dayItem.lessons?.map((les, lIdx) => (
+                        <div key={lIdx} className="p-2 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                          <span className="truncate">{les.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modules Scaffolding Preview */}
+            {activeModuleIndex >= 0 && outline.modules?.length > 0 && (
+              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                {outline.modules.map((mod, mIdx) => (
+                  <div key={mIdx} className="rounded-2xl p-5 bg-[#0b0f19] border border-white/5 hover:border-indigo-500/30 transition-colors">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-black border border-indigo-500/30">
+                          {mIdx + 1}
+                        </div>
+                        <h4 className="text-sm font-bold text-white">{mod.title}</h4>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {mod.lessons?.length || 0} Lessons
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                      {mod.lessons?.map((les, lIdx) => (
+                        <div key={lIdx} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center space-x-2 text-xs text-slate-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                          <span className="truncate">{les.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Natural language modifier bar */}
             <div className="rounded-2xl p-4 bg-[#0b0f19] border border-white/10 flex items-center gap-3">
@@ -492,7 +604,7 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                 type="text"
                 value={modificationPrompt}
                 onChange={(e) => setModificationPrompt(e.target.value)}
-                placeholder="Want changes? e.g., 'Add a deep dive on Graph Algorithms and AVL Trees'..."
+                placeholder="Want changes? e.g., 'Make Day 5 easier' or 'Add more SQL practice'..."
                 className="flex-1 bg-[#080c14] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
               />
               <button

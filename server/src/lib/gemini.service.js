@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { jsonrepair } from "jsonrepair";
-import { courseOutlineSchema } from "../modules/courses/course.validator.js";
+import { courseOutlineSchema, normalizeCourseOutline } from "../modules/courses/course.validator.js";
 import { ENV } from "../config/env.js";
 
 // Helper to retrieve active API Key
@@ -38,13 +38,13 @@ export const cleanAndParseJson = (rawText) => {
 };
 
 /**
- * Generate a new structured course outline adhering to Bloom's Taxonomy.
+ * Generate a new structured day-wise course outline adhering to Bloom's Taxonomy.
  */
 export const generateCourseOutlineWithGemini = async ({
   topic,
   learningGoal,
   currentLevel,
-  durationDays,
+  durationDays = 10,
   dailyStudyTime,
   learningPreference,
   apiKey,
@@ -66,35 +66,27 @@ export const generateCourseOutlineWithGemini = async ({
       topic,
       learningGoal,
       currentLevel,
-      durationDays,
+      durationDays: Number(durationDays) || 10,
       dailyStudyTime,
       learningPreference,
     });
   }
 
-  // Determine appropriate module count based on duration
-  const targetModuleCount = Math.max(3, Math.min(8, Math.round(durationDays / 2) || 4));
-
   const prompt = `You are PadhAI's master curriculum architect, specializing in instructional design and cognitive scaffolding.
 
-Design a comprehensive, structured course outline on the following topic strictly adhering to the revised Bloom's Taxonomy progression:
+Design a comprehensive, structured, DAY-BY-DAY course outline on the following topic strictly adhering to Bloom's Taxonomy:
 - Topic: "${topic}"
 - Primary Learning Goal: "${learningGoal}"
 - Learner's Current Level: ${currentLevel}
-- Total Course Duration: ${durationDays} days (${dailyStudyTime} per day)
+- Total Course Duration: EXACTLY ${durationDays} DAYS (${dailyStudyTime} per day)
 - Learning Style & Preference: ${learningPreference}
 
-PEDAGOGICAL INSTRUCTION (BLOOM'S TAXONOMY PROGRESSION):
-Structure the course into exactly ${targetModuleCount} progressive modules:
-1. Early Modules (Cognitive Level: Remember & Understand): Establish foundational terms, conceptual mental models, core principles, and analogies.
-2. Middle Modules (Cognitive Level: Apply & Analyze): Focus on procedural implementation, real-world case analysis, core mechanics, and problem-solving.
-3. Final Modules (Cognitive Level: Evaluate & Create): Synthesize knowledge through architectural design, trade-off evaluation, and practical capstone projects matching the learner's goal.
-
-STRICT FORMATTING REQUIREMENTS:
-- Output MUST be valid JSON only.
-- Do NOT output any HTML tags.
-- Do NOT output any markdown blocks, explanations, or prologue text.
-- Do NOT output raw backticks.
+CRITICAL DURATION & DAY-WISE RULES:
+1. The course MUST contain an explicit day-by-day plan of EXACTLY ${durationDays} days in the "days" array.
+2. The "days" array MUST have exactly ${durationDays} elements, numbered day 1 to day ${durationDays}.
+3. Every single day must have a distinct pedagogical theme, clear daily learning objective, and 1 to 3 focused lessons.
+4. Also group the days logically into 3 to 6 progressive modules in the "modules" array (Foundations -> Implementation & Mechanics -> Advanced Architecture & Mastery).
+5. Output MUST be valid JSON only without markdown fences, prologue, or epilogue.
 
 EXACT JSON SCHEMA TO SATISFY:
 {
@@ -104,15 +96,31 @@ EXACT JSON SCHEMA TO SATISFY:
     "string (actionable outcome starting with an active verb, e.g., 'Analyze...', 'Build...', 'Evaluate...')"
   ],
   "estimatedDuration": "${durationDays} Days • ${dailyStudyTime}/day",
+  "durationDays": ${durationDays},
+  "days": [
+    {
+      "day": 1,
+      "title": "string (e.g. 'Day 1: Introduction to Architecture')",
+      "learningObjective": "string (daily core outcome)",
+      "moduleTitle": "string (e.g. 'Module 1: Foundations')",
+      "lessons": [
+        {
+          "title": "string (clear lesson title)",
+          "learningObjective": "string (specific competency learner gains)",
+          "estimatedMinutes": 30
+        }
+      ]
+    }
+  ],
   "modules": [
     {
       "title": "string (e.g., 'Module 1: Foundations & Architecture')",
       "description": "string (scope and cognitive focus of this module)",
-      "estimatedMinutes": number (total minutes for this module),
+      "estimatedMinutes": number,
       "lessons": [
         {
           "title": "string (clear lesson title)",
-          "learningObjective": "string (specific competency learner gains from this lesson)"
+          "learningObjective": "string (specific competency learner gains)"
         }
       ]
     }
@@ -122,11 +130,10 @@ EXACT JSON SCHEMA TO SATISFY:
   let rawOutput = "";
 
   try {
-    // Attempt with @google/genai first
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -137,10 +144,9 @@ EXACT JSON SCHEMA TO SATISFY:
       rawOutput = response?.candidates?.[0]?.content?.parts?.[0]?.text || response?.text || "";
     } catch (sdkErr) {
       console.warn("Primary GenAI SDK call fell back, trying generative-ai sdk:", sdkErr.message);
-      // Fallback to @google/generative-ai
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.7 },
       });
       const result = await model.generateContent(prompt);
@@ -148,14 +154,28 @@ EXACT JSON SCHEMA TO SATISFY:
     }
 
     const parsedJson = cleanAndParseJson(rawOutput);
+    const normalizedOutline = normalizeCourseOutline(parsedJson, Number(durationDays) || 10);
 
     // Validate with Zod
-    const validatedOutline = courseOutlineSchema.parse(parsedJson);
+    const validatedOutline = courseOutlineSchema.parse(normalizedOutline);
     return validatedOutline;
   } catch (error) {
     console.error("Course generation failed:", error.message);
-    if (error.name === "ZodError") {
-      throw new Error(`AI generated outline did not match expected structure: ${error.errors.map(e => e.message).join(", ")}`);
+    if (
+      error.message?.includes("429") ||
+      error.message?.includes("Quota exceeded") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
+      const rateLimitErr = new Error(
+        "Gemini API rate limit or daily quota reached (20/20 requests). Please add your personal Gemini API key in Settings to generate 100% real-time courses."
+      );
+      rateLimitErr.status = 429;
+      rateLimitErr.code = "QUOTA_EXCEEDED";
+      throw rateLimitErr;
+    }
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
+      throw new Error(`AI generated outline did not match expected structure: ${issues.map(e => e.message).join(", ")}`);
     }
     throw error;
   }
@@ -171,6 +191,7 @@ export const modifyCourseOutlineWithGemini = async ({
   apiKey,
 }) => {
   const activeKey = resolveApiKey(apiKey);
+  const targetDays = setupParams.durationDays || currentOutline.durationDays || 10;
 
   if (!activeKey) {
     const error = new Error(
@@ -192,7 +213,7 @@ ORIGINAL COURSE PARAMETERS:
 - Topic: "${setupParams.topic}"
 - Learning Goal: "${setupParams.learningGoal}"
 - Level: ${setupParams.currentLevel}
-- Duration: ${setupParams.durationDays} days (${setupParams.dailyStudyTime}/day)
+- Duration: EXACTLY ${targetDays} days (${setupParams.dailyStudyTime}/day)
 - Preference: ${setupParams.learningPreference}
 
 CURRENT COURSE OUTLINE:
@@ -202,9 +223,9 @@ USER REQUESTED MODIFICATIONS:
 "${modifications}"
 
 INSTRUCTIONS:
-1. Update the outline to carefully incorporate ALL requested modifications while maintaining Bloom's Taxonomy progression (Foundations -> Application -> Mastery).
-2. Keep unaffected parts of the curriculum intact for continuity.
-3. Return ONLY the updated valid JSON object strictly matching the schema.
+1. Update the outline to carefully incorporate ALL requested modifications while strictly keeping duration at EXACTLY ${targetDays} days.
+2. The "days" array MUST contain exactly ${targetDays} elements (Day 1 through Day ${targetDays}).
+3. Return ONLY the updated valid JSON object matching the schema.
 4. No HTML, no markdown code fences, no introductory or concluding chatter.
 
 EXACT JSON SCHEMA:
@@ -212,7 +233,23 @@ EXACT JSON SCHEMA:
   "title": "string",
   "description": "string",
   "learningObjectives": ["string"],
-  "estimatedDuration": "string",
+  "estimatedDuration": "${targetDays} Days • ${setupParams.dailyStudyTime}/day",
+  "durationDays": ${targetDays},
+  "days": [
+    {
+      "day": number,
+      "title": "string",
+      "learningObjective": "string",
+      "moduleTitle": "string",
+      "lessons": [
+        {
+          "title": "string",
+          "learningObjective": "string",
+          "estimatedMinutes": number
+        }
+      ]
+    }
+  ],
   "modules": [
     {
       "title": "string",
@@ -234,7 +271,7 @@ EXACT JSON SCHEMA:
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -247,7 +284,7 @@ EXACT JSON SCHEMA:
       console.warn("GenAI SDK modification fallback:", sdkErr.message);
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
       });
       const result = await model.generateContent(prompt);
@@ -255,12 +292,14 @@ EXACT JSON SCHEMA:
     }
 
     const parsedJson = cleanAndParseJson(rawOutput);
-    const validatedOutline = courseOutlineSchema.parse(parsedJson);
+    const normalizedOutline = normalizeCourseOutline(parsedJson, targetDays);
+    const validatedOutline = courseOutlineSchema.parse(normalizedOutline);
     return validatedOutline;
   } catch (error) {
     console.error("Course modification failed:", error.message);
-    if (error.name === "ZodError") {
-      throw new Error(`Modified outline did not match expected structure: ${error.errors.map(e => e.message).join(", ")}`);
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
+      throw new Error(`AI modified outline did not match expected structure: ${issues.map(e => e.message).join(", ")}`);
     }
     throw error;
   }
@@ -273,113 +312,76 @@ const generateDemoOutline = ({
   topic,
   learningGoal,
   currentLevel,
-  durationDays,
+  durationDays = 10,
   dailyStudyTime,
   learningPreference,
 }) => {
-  return {
-    title: `Mastering ${topic}: From Fundamentals to Production`,
-    description: `A structured ${durationDays}-day learning path for ${topic} engineered using Bloom's Taxonomy progression. Tailored for ${currentLevel} learners with a focus on "${learningGoal}" utilizing a ${learningPreference.toLowerCase()} approach.`,
+  const days = [];
+  const duration = Number(durationDays) || 10;
+  const targetModuleCount = Math.max(3, Math.min(6, Math.ceil(duration / 3)));
+
+  const dayThemes = [
+    { title: "Core Foundations & Architectural Mental Models", focus: "Recall & Understand" },
+    { title: "Environment Configuration & Dependency Setup", focus: "Remember" },
+    { title: "Essential Syntax, Lifecycles & State Management", focus: "Understand" },
+    { title: "Primary Algorithms & Procedural Execution", focus: "Apply" },
+    { title: "Hands-on Implementation & Workflows", focus: "Apply" },
+    { title: "Debugging Patterns, Gotchas & Boundary Cases", focus: "Analyze" },
+    { title: "Performance Profiling & Latency Optimization", focus: "Analyze" },
+    { title: "Security Hardening & Best Practices", focus: "Evaluate" },
+    { title: "Architectural Tradeoffs & System Design", focus: "Evaluate" },
+    { title: "Capstone Project Architecture & Deployment", focus: "Create" },
+  ];
+
+  for (let d = 1; d <= duration; d++) {
+    const themeIdx = (d - 1) % dayThemes.length;
+    const theme = dayThemes[themeIdx];
+    const modNum = Math.min(targetModuleCount, Math.ceil((d / duration) * targetModuleCount));
+
+    days.push({
+      day: d,
+      title: `Day ${d}: ${theme.title}`,
+      learningObjective: `Master ${theme.title.toLowerCase()} for ${topic} with focus on "${learningGoal}"`,
+      moduleTitle: `Module ${modNum}: Stage ${modNum} Progression`,
+      lessons: [
+        {
+          title: `Lesson ${d}.1: Deep Dive on ${theme.title}`,
+          learningObjective: `Understand mechanisms and apply best practices in ${topic}`,
+          estimatedMinutes: 30,
+        },
+        {
+          title: `Lesson ${d}.2: Practical Implementation & Analysis`,
+          learningObjective: `Build hands-on exercises and analyze edge cases`,
+          estimatedMinutes: 30,
+        },
+      ],
+    });
+  }
+
+  const rawOutline = {
+    title: `Mastering ${topic}: Complete ${duration}-Day Roadmap`,
+    description: `A structured ${duration}-day curriculum for ${topic} engineered using Bloom's Taxonomy. Tailored for ${currentLevel} learners aiming for "${learningGoal}" with ${dailyStudyTime}/day pace.`,
     learningObjectives: [
-      `Recall and explain foundational mental models and architectural principles of ${topic}`,
-      `Apply core mechanisms and best practices to solve real-world technical problems`,
+      `Recall and explain foundational mental models of ${topic}`,
+      `Apply core mechanisms to solve technical challenges`,
       `Analyze performance tradeoffs and debug complex failure scenarios`,
-      `Synthesize learned concepts into an end-to-end production capstone project`,
+      `Synthesize learned concepts into a complete capstone project`,
     ],
-    estimatedDuration: `${durationDays} Days • ${dailyStudyTime}/day`,
-    modules: [
-      {
-        title: `Module 1: Foundations & Mental Models (Remember & Understand)`,
-        description: `Establish essential domain vocabulary, system boundaries, and underlying principles of ${topic}.`,
-        estimatedMinutes: 90,
-        lessons: [
-          {
-            title: `Introduction to ${topic} Ecosystem`,
-            learningObjective: `Identify key components and understand the fundamental architecture of ${topic}`,
-          },
-          {
-            title: `Core Terminology & Mental Models`,
-            learningObjective: `Define critical terms, lifecycle stages, and standard patterns in ${topic}`,
-          },
-          {
-            title: `Setting Up Your Development Environment`,
-            learningObjective: `Configure tools, dependencies, and validation environments for ${topic}`,
-          },
-        ],
-      },
-      {
-        title: `Module 2: Core Mechanics & Implementation (Apply & Analyze)`,
-        description: `Hands-on problem solving and procedural execution for standard workflows in ${topic}.`,
-        estimatedMinutes: 120,
-        lessons: [
-          {
-            title: `Implementing Primary Workflows`,
-            learningObjective: `Write, execute, and verify primary patterns and operations in ${topic}`,
-          },
-          {
-            title: `Data Flow & State Management`,
-            learningObjective: `Trace execution paths, isolate bottlenecks, and structure data efficiently`,
-          },
-          {
-            title: `Common Gotchas & Error Prevention`,
-            learningObjective: `Diagnose common bugs, boundary cases, and edge failure modes`,
-          },
-        ],
-      },
-      {
-        title: `Module 3: Advanced Architecture & Tradeoffs (Evaluate)`,
-        description: `Critically evaluate competing patterns, security constraints, and scale factors.`,
-        estimatedMinutes: 150,
-        lessons: [
-          {
-            title: `Scaling & Performance Optimization`,
-            learningObjective: `Analyze system metrics and implement latency and memory optimizations`,
-          },
-          {
-            title: `Security Best Practices & Hardening`,
-            learningObjective: `Audit security risks, apply input sanitization, and manage access boundaries`,
-          },
-        ],
-      },
-      {
-        title: `Module 4: Capstone Synthesis & Deployment (Create)`,
-        description: `Synthesize all concepts to design and deliver a real-world system achieving: "${learningGoal}".`,
-        estimatedMinutes: 180,
-        lessons: [
-          {
-            title: `Capstone Project Architecture`,
-            learningObjective: `Draft the comprehensive architecture for a complete ${topic} application`,
-          },
-          {
-            title: `Integration, Testing & Deployment`,
-            learningObjective: `Deploy, monitor, and deliver a production-ready system meeting the primary learning goal`,
-          },
-        ],
-      },
-    ],
+    estimatedDuration: `${duration} Days • ${dailyStudyTime || "2 hours"}/day`,
+    durationDays: duration,
+    days,
+    modules: [],
   };
+
+  return normalizeCourseOutline(rawOutline, duration);
 };
 
 const modifyDemoOutline = ({ currentOutline, modifications, setupParams }) => {
-  const updatedModules = [
-    ...currentOutline.modules,
-    {
-      title: `Specialized Module: Tailored Modifications`,
-      description: `Targeted module incorporated to address user request: "${modifications}"`,
-      estimatedMinutes: 90,
-      lessons: [
-        {
-          title: `Focused Deep Dive on ${modifications.slice(0, 40)}`,
-          learningObjective: `Integrate user-customized focus area into ${setupParams.topic}`,
-        },
-      ],
-    },
-  ];
-
-  return {
+  const targetDays = setupParams.durationDays || currentOutline.durationDays || 10;
+  const updated = {
     ...currentOutline,
     title: `${currentOutline.title} (Updated)`,
     description: `${currentOutline.description} • Adjusted based on feedback: "${modifications}"`,
-    modules: updatedModules,
   };
+  return normalizeCourseOutline(updated, targetDays);
 };

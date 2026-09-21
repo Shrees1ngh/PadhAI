@@ -57,6 +57,9 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 // Transform to clean JSON without exposing sensitive password hash
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
+  if (obj._id) {
+    obj.id = obj._id.toString();
+  }
   delete obj.passwordHash;
   delete obj.__v;
   return obj;

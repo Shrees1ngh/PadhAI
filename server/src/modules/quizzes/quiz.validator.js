@@ -2,19 +2,22 @@ import { z } from "zod";
 
 export const generateQuizInputSchema = z.object({
   courseId: z.string().optional().default("general"),
-  moduleIndex: z.number({ coerce: true }).int().min(0),
-  lessonIndex: z.number({ coerce: true }).int().min(0),
+  moduleIndex: z.number({ coerce: true }).int().min(0).optional().default(0),
+  lessonIndex: z.number({ coerce: true }).int().min(0).optional().default(0),
   lessonTitle: z.string().min(1, "Lesson title is required"),
   lessonContent: z
-    .object({
-      introduction: z.string().optional(),
-      explanation: z.string().optional(),
-      keyConcepts: z.array(z.string()).optional(),
-      examples: z.array(z.string()).optional(),
-      commonMistakes: z.array(z.string()).optional(),
-      summary: z.string().optional(),
-      importantTakeaways: z.array(z.string()).optional(),
-    })
+    .union([
+      z.string(),
+      z.object({
+        introduction: z.string().optional(),
+        explanation: z.string().optional(),
+        keyConcepts: z.array(z.string()).optional(),
+        examples: z.array(z.string()).optional(),
+        commonMistakes: z.array(z.string()).optional(),
+        summary: z.string().optional(),
+        importantTakeaways: z.array(z.string()).optional(),
+      }),
+    ])
     .optional()
     .default({}),
   currentLevel: z.enum(["Beginner", "Intermediate", "Advanced"]).default("Beginner"),
@@ -39,17 +42,16 @@ export const quizQuestionSchema = z.object({
 export const quizOutputSchema = z.object({
   questions: z
     .array(quizQuestionSchema)
-    .min(5, "Quiz must contain at least 5 questions")
-    .max(5, "Quiz must contain exactly 5 questions"),
+    .min(1, "Quiz must contain at least 1 question"),
 });
 
 export const saveQuizInputSchema = z.object({
-  courseId: z.string().min(1, "Course ID is required"),
-  moduleIndex: z.number({ coerce: true }).int().min(0),
-  lessonIndex: z.number({ coerce: true }).int().min(0),
+  courseId: z.string().optional().default("general"),
+  moduleIndex: z.number({ coerce: true }).int().min(0).optional().default(0),
+  lessonIndex: z.number({ coerce: true }).int().min(0).optional().default(0),
   lessonTitle: z.string().min(1, "Lesson title is required"),
-  questions: z.array(quizQuestionSchema).length(5, "Quiz must contain 5 questions"),
-  score: z.number().min(0).max(5).optional(),
+  questions: z.array(quizQuestionSchema).min(1, "Quiz must contain questions"),
+  score: z.number().min(0).optional(),
   totalQuestions: z.number().default(5),
   percentage: z.number().min(0).max(100).optional(),
   userAnswers: z.array(z.number()).optional(),

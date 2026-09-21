@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resolveApiKey, cleanAndParseJson } from "./gemini.service.js";
 import { tutorChatOutputSchema } from "../modules/ai-tutor/aiTutor.validator.js";
+import { ENV } from "../config/env.js";
 
 /**
  * Generate a contextual, pedagogical AI Tutor response grounded in the current lesson.
@@ -40,26 +41,43 @@ export const chatWithAITutor = async ({
 
   // Construct structured lesson context
   const contextSections = [];
-  if (courseTitle) contextSections.push(`COURSE: ${courseTitle}`);
-  if (moduleTitle) contextSections.push(`MODULE: ${moduleTitle}`);
+  if (courseTitle) contextSections.push(`COURSE/TOPIC: ${courseTitle}`);
+  if (moduleTitle) contextSections.push(`MODULE/SECTION: ${moduleTitle}`);
   if (lessonTitle) contextSections.push(`ACTIVE LESSON: ${lessonTitle}`);
   if (learningObjective) contextSections.push(`LEARNING OBJECTIVE: ${learningObjective}`);
   if (learnerLevel) contextSections.push(`LEARNER PROFICIENCY LEVEL: ${learnerLevel}`);
 
-  if (lessonContent.introduction) {
-    contextSections.push(`LESSON INTRODUCTION:\n${lessonContent.introduction.slice(0, 1000)}`);
-  }
-  if (lessonContent.explanation) {
-    contextSections.push(`LESSON CORE EXPLANATION:\n${lessonContent.explanation.slice(0, 2500)}`);
-  }
-  if (lessonContent.keyConcepts?.length) {
-    contextSections.push(`LESSON KEY CONCEPTS:\n- ${lessonContent.keyConcepts.join("\n- ")}`);
-  }
-  if (lessonContent.commonMistakes?.length) {
-    contextSections.push(`COMMON MISTAKES & MISCONCEPTIONS:\n- ${lessonContent.commonMistakes.join("\n- ")}`);
-  }
-  if (lessonContent.summary) {
-    contextSections.push(`LESSON SUMMARY:\n${lessonContent.summary.slice(0, 1000)}`);
+  if (typeof lessonContent === "string" && lessonContent.trim()) {
+    contextSections.push(`LESSON CONTENT:\n${lessonContent.slice(0, 3000)}`);
+  } else if (lessonContent && typeof lessonContent === "object") {
+    if (lessonContent.simpleExplanation) {
+      contextSections.push(`TOPIC OVERVIEW & EXPLANATION:\n${lessonContent.simpleExplanation.slice(0, 1500)}`);
+    }
+    if (lessonContent.whyItMatters) {
+      contextSections.push(`WHY IT MATTERS:\n${lessonContent.whyItMatters.slice(0, 1000)}`);
+    }
+    if (lessonContent.realLifeAnalogy) {
+      contextSections.push(`REAL-LIFE ANALOGY:\n${lessonContent.realLifeAnalogy.slice(0, 1000)}`);
+    }
+    if (lessonContent.introduction) {
+      contextSections.push(`LESSON INTRODUCTION:\n${lessonContent.introduction.slice(0, 1000)}`);
+    }
+    if (lessonContent.explanation) {
+      contextSections.push(`LESSON CORE EXPLANATION:\n${lessonContent.explanation.slice(0, 2000)}`);
+    }
+    if (lessonContent.keyConcepts?.length) {
+      contextSections.push(`LESSON KEY CONCEPTS:\n- ${lessonContent.keyConcepts.join("\n- ")}`);
+    }
+    if (lessonContent.coreConcepts?.length) {
+      const formattedConcepts = lessonContent.coreConcepts.map(c => typeof c === 'string' ? c : `${c.title}: ${c.description || ''}`);
+      contextSections.push(`CORE CONCEPTS:\n- ${formattedConcepts.join("\n- ")}`);
+    }
+    if (lessonContent.commonMistakes?.length) {
+      contextSections.push(`COMMON MISTAKES & MISCONCEPTIONS:\n- ${lessonContent.commonMistakes.join("\n- ")}`);
+    }
+    if (lessonContent.summary) {
+      contextSections.push(`LESSON SUMMARY:\n${lessonContent.summary.slice(0, 1000)}`);
+    }
   }
 
   const lessonContextString = contextSections.join("\n\n");
@@ -110,7 +128,7 @@ ${historyFormatted || "(No prior conversation in this lesson session)"}
     try {
       const ai = new GoogleGenAI({ apiKey: activeKey });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -123,7 +141,7 @@ ${historyFormatted || "(No prior conversation in this lesson session)"}
       console.warn("Primary GenAI call fallback in AI Tutor service:", sdkErr.message);
       const genAI = new GoogleGenerativeAI(activeKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: ENV.GEMINI_MODEL || "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json", temperature: 0.6 },
       });
       const result = await model.generateContent(prompt);
@@ -135,9 +153,22 @@ ${historyFormatted || "(No prior conversation in this lesson session)"}
     return validated;
   } catch (error) {
     console.error("AI Tutor response generation failed:", error.message);
-    if (error.name === "ZodError") {
+    if (
+      error.message?.includes("429") ||
+      error.message?.includes("Quota exceeded") ||
+      error.message?.includes("RESOURCE_EXHAUSTED")
+    ) {
+      const rateLimitErr = new Error(
+        "Gemini API rate limit or daily quota reached. Please add your Gemini API key in Settings to chat with AI Tutor in real-time."
+      );
+      rateLimitErr.status = 429;
+      rateLimitErr.code = "QUOTA_EXCEEDED";
+      throw rateLimitErr;
+    }
+    if (error.name === "ZodError" || error.issues) {
+      const issues = error.issues || error.errors || [];
       throw new Error(
-        `AI Tutor output did not match expected structure: ${error.errors.map((e) => e.message).join(", ")}`
+        `AI Tutor output did not match expected structure: ${issues.map((e) => e.message).join(", ")}`
       );
     }
     throw error;
