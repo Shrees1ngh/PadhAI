@@ -1,16 +1,16 @@
-/* Hintify-inspired Navbar Stylesheet for PadhAI */
+/* Exact Hintify Navbar Stylesheet */
 
 .navbar {
-  position: sticky;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   z-index: 50;
-  background: rgba(8, 12, 20, 0.88);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, background-color 0.3s ease;
+  background: rgba(5, 8, 16, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
 }
 
 .navbar.hidden {
@@ -26,20 +26,20 @@
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 2rem;
   height: 72px;
 }
 
-/* Left Section: Logo */
+/* Left: Logo */
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-width: 200px;
 }
 
 .nav-logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.75rem;
   background: none;
@@ -50,7 +50,7 @@
   color: inherit;
 }
 
-/* Center Section: Pill Links Capsule */
+/* Center: Floating Pill Capsule */
 .nav-center {
   display: flex;
   align-items: center;
@@ -61,14 +61,14 @@
 .main-links {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
-  background: rgba(11, 16, 29, 0.92);
+  gap: 4px;
+  padding: 5px 6px;
+  background: rgba(13, 18, 30, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
-  box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .nav-link {
@@ -79,10 +79,9 @@
   justify-content: center;
   padding: 7px 18px 9px;
   border-radius: 9999px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #8a8faa;
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
@@ -94,7 +93,6 @@
 
 .nav-link:hover {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-link.active {
@@ -105,11 +103,13 @@
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
-/* Glowing Cyan Active Dot (Matching Hintify Exactly) */
+/* Cyan dot under active item */
 .nav-link.active::after {
   content: '';
   position: absolute;
   bottom: 3.5px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -121,11 +121,11 @@
 @keyframes nav-dot-pulse {
   0%, 100% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateX(-50%) scale(1);
   }
   50% {
     opacity: 0.6;
-    transform: scale(0.85);
+    transform: translateX(-50%) scale(0.85);
   }
 }
 
@@ -134,12 +134,14 @@
   z-index: 1;
 }
 
-/* Right Section: CTAs */
+/* Right: CTAs */
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 1rem;
+  flex: 0 0 auto;
+  min-width: 200px;
 }
 
 /* Mobile Hamburger Toggle */
@@ -186,7 +188,7 @@
   transform: translateY(-7px) rotate(-45deg);
 }
 
-/* Responsive Styles */
+/* Responsive */
 @media (max-width: 1023px) {
   .nav-center {
     display: none;
@@ -204,14 +206,14 @@
   width: 100vw;
   height: 100vh;
   z-index: 9999;
-  background: rgba(8, 12, 20, 0.97);
+  background: rgba(8, 12, 20, 0.98);
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 2rem;
   border: none;
   border-radius: 0;
@@ -220,11 +222,11 @@
 }
 
 .main-links.mobile-open .nav-link {
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  padding: 0.75rem 2rem;
+  padding: 0.85rem 2.5rem;
   width: auto;
-  min-width: 200px;
+  min-width: 220px;
   text-align: center;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.03);
@@ -234,15 +236,4 @@
 .main-links.mobile-open .nav-link.active {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(0, 245, 255, 0.4);
-}
-
-@keyframes mobile-nav-fade {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
 }

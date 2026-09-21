@@ -314,14 +314,16 @@ export function App() {
       )}
 
       {/* Page Body: Sidebar on Left, Content on Right */}
-      <div className="flex-1 flex min-w-0">
+      <div className="flex-1 flex min-w-0 pt-[72px]">
         
-        {/* Left Navigation Sidebar (Below Navbar) */}
-        <Sidebar
-          currentView={getCurrentViewId()}
-          onSelectView={handleSidebarNav}
-          activeCourse={activeCourse}
-        />
+        {/* Left Navigation Sidebar (Hidden on Home landing page so Navbar is perfectly centered like Hintify) */}
+        {location.pathname !== '/' && (
+          <Sidebar
+            currentView={getCurrentViewId()}
+            onSelectView={handleSidebarNav}
+            activeCourse={activeCourse}
+          />
+        )}
 
         {/* Mobile Drawer Overlay */}
         {mobileSidebarOpen && (
