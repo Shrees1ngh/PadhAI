@@ -155,9 +155,12 @@ export const analyzeStudyMaterial = async (formData, apiKey) => {
 // CHEATSHEETS API SERVICES
 // ==================================
 
-export const generateCheatsheet = async (payload, apiKey) => {
+export const generateCheatsheet = async (payload, apiKey, options = {}) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/cheatsheets/generate', payload, { headers });
+  return await api.post('/cheatsheets/generate', payload, {
+    headers: { ...headers, ...(options.headers || {}) },
+    signal: options.signal,
+  });
 };
 
 export const saveCheatsheet = async (payload) => {
@@ -166,6 +169,10 @@ export const saveCheatsheet = async (payload) => {
 
 export const fetchLessonCheatsheet = async (courseId, moduleIndex, lessonIndex) => {
   return await api.get(`/cheatsheets/${courseId}/${moduleIndex}/${lessonIndex}`);
+};
+
+export const fetchSavedCheatsheets = async () => {
+  return await api.get('/cheatsheets/saved');
 };
 
 // ==================================

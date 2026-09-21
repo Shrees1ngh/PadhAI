@@ -464,10 +464,6 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <CheatsheetViewer
-                    courseTopic={activeCourse?.topic || 'Computer Science & DSA'}
-                    lessonTitle={activeCourse?.title || 'Comprehensive Quick Revision Guide'}
-                    currentLevel={activeCourse?.level || 'Beginner'}
-                    courseId={activeCourse?._id || activeCourse?.id}
                     onBack={() => navigate('/my-learning')}
                   />
                 </ProtectedRoute>

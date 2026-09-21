@@ -210,3 +210,46 @@ export const getLessonCheatsheetHandler = async (req, res) => {
     });
   }
 };
+
+/**
+ * Retrieve all saved cheatsheets for the authenticated user
+ * GET /api/cheatsheets/saved
+ */
+export const getSavedCheatsheetsHandler = async (req, res) => {
+  try {
+    const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to fetch saved cheatsheets.",
+      });
+    }
+
+    if (!isDbReady) {
+      return res.status(200).json({
+        success: true,
+        cheatsheets: [],
+        mongoUnavailable: true,
+        message: "MongoDB is offline. Cannot query stored cheatsheets.",
+      });
+    }
+
+    const docs = await Cheatsheet.find({ userId: req.user.id })
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      cheatsheets: docs || [],
+    });
+  } catch (error) {
+    console.error("Error in getSavedCheatsheetsHandler:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve saved cheatsheets",
+      cheatsheets: [],
+    });
+  }
+};

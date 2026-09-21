@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -30,9 +30,11 @@ import {
   Scale,
   Atom,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
-import { generateCheatsheet, saveCheatsheet } from '../../services/api';
+import { generateCheatsheet, saveCheatsheet, fetchSavedCheatsheets } from '../../services/api';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 
 const BADGE_COLORS = [
@@ -57,7 +59,7 @@ const PRESET_TOPICS = [
 ];
 
 export const CheatsheetViewer = ({
-  lessonTitle = 'Marginal Utility & Consumer Equilibrium',
+  lessonTitle = '',
   lessonContent = '',
   courseTopic = '',
   currentLevel = 'Beginner',
@@ -67,11 +69,10 @@ export const CheatsheetViewer = ({
   sourceType = 'lesson',
   onBack,
 }) => {
-  const [activeTopic, setActiveTopic] = useState(lessonTitle || courseTopic || 'Marginal Utility & Consumer Equilibrium');
-  const [activeContext, setActiveContext] = useState(courseTopic || '');
+  const [activeTopic, setActiveTopic] = useState(lessonTitle || '');
   const [activeLevel, setActiveLevel] = useState(currentLevel || 'Beginner');
   const [customInput, setCustomInput] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(!lessonTitle);
 
   const [cheatsheet, setCheatsheet] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -81,61 +82,118 @@ export const CheatsheetViewer = ({
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [savedCheatsheets, setSavedCheatsheets] = useState([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
 
-  const fetchCheatsheetData = useCallback(async (overrideTopic, overrideContext) => {
-    const topicToUse = overrideTopic || activeTopic;
-    if (!topicToUse) return;
+  const abortControllerRef = useRef(null);
 
-    setLoading(true);
-    setError(null);
-    setSaveStatus(null);
-    setSaveMessage(null);
-
+  const loadSavedCheatsheets = useCallback(async () => {
+    setLoadingSaved(true);
     try {
-      const res = await generateCheatsheet({
-        lessonTitle: topicToUse,
-        lessonContent: typeof lessonContent === 'object' ? JSON.stringify(lessonContent) : (lessonContent || topicToUse),
-        courseTopic: overrideContext !== undefined ? overrideContext : activeContext,
-        currentLevel: activeLevel || 'Beginner',
-        courseId: courseId || undefined,
-        moduleIndex: moduleIndex !== undefined ? moduleIndex : undefined,
-        lessonIndex: lessonIndex !== undefined ? lessonIndex : undefined,
-        sourceType: sourceType || 'lesson',
-      });
-
-      if (res?.success && res.cheatsheet) {
-        setCheatsheet(res.cheatsheet);
-      } else {
-        throw new Error(res?.message || "Couldn't generate cheatsheet right now.");
+      const res = await fetchSavedCheatsheets();
+      if (res?.success && Array.isArray(res.cheatsheets)) {
+        setSavedCheatsheets(res.cheatsheets);
       }
     } catch (err) {
-      console.error('Cheatsheet generation error:', err);
-      setError(err?.message || "Couldn't generate cheatsheet right now.");
-      setCheatsheet(null);
+      console.warn('Could not fetch saved cheatsheets:', err.message);
     } finally {
-      setLoading(false);
+      setLoadingSaved(false);
     }
-  }, [activeTopic, activeContext, activeLevel, lessonContent, courseId, moduleIndex, lessonIndex, sourceType]);
+  }, []);
+
+  const fetchCheatsheetData = useCallback(
+    async (topicToGenerate, contextToUse = '', contentToUse = undefined) => {
+      const targetTopic = topicToGenerate || activeTopic;
+      if (!targetTopic || !targetTopic.trim()) return;
+
+      // Abort any in-flight request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      setLoading(true);
+      setError(null);
+      setSaveStatus(null);
+      setSaveMessage(null);
+
+      try {
+        const payloadContent =
+          contentToUse !== undefined
+            ? (typeof contentToUse === 'object' ? JSON.stringify(contentToUse) : contentToUse)
+            : undefined;
+
+        const res = await generateCheatsheet(
+          {
+            lessonTitle: targetTopic,
+            lessonContent: payloadContent,
+            courseTopic: contextToUse,
+            currentLevel: activeLevel || 'Beginner',
+            courseId: courseId || undefined,
+            moduleIndex: moduleIndex !== undefined ? moduleIndex : undefined,
+            lessonIndex: lessonIndex !== undefined ? lessonIndex : undefined,
+            sourceType: sourceType || 'lesson',
+          },
+          undefined,
+          { signal: controller.signal }
+        );
+
+        if (res?.success && res.cheatsheet) {
+          setCheatsheet(res.cheatsheet);
+          setIsSearchOpen(false);
+        } else {
+          throw new Error(res?.message || "Couldn't generate cheatsheet right now.");
+        }
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') {
+          return;
+        }
+        console.error('Cheatsheet generation error:', err);
+        setError(err?.message || "Couldn't generate cheatsheet right now.");
+        setCheatsheet(null);
+      } finally {
+        if (abortControllerRef.current === controller) {
+          setLoading(false);
+        }
+      }
+    },
+    [activeTopic, activeLevel, courseId, moduleIndex, lessonIndex, sourceType]
+  );
 
   useEffect(() => {
-    if (lessonTitle) {
+    if (lessonTitle && lessonTitle.trim()) {
       setActiveTopic(lessonTitle);
-      fetchCheatsheetData(lessonTitle, courseTopic);
+      fetchCheatsheetData(lessonTitle, courseTopic, lessonContent);
+    } else {
+      loadSavedCheatsheets();
     }
-  }, [lessonTitle, courseTopic]);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [lessonTitle, courseTopic, lessonContent, fetchCheatsheetData, loadSavedCheatsheets]);
 
   const handleCustomTopicSubmit = (e) => {
     e.preventDefault();
     if (!customInput.trim()) return;
     const newTopic = customInput.trim();
     setActiveTopic(newTopic);
-    fetchCheatsheetData(newTopic, '');
+    // When the user types a custom topic, do NOT send the previous lessonContent
+    fetchCheatsheetData(newTopic, '', undefined);
   };
 
   const handleSelectPreset = (preset) => {
     setActiveTopic(preset.label);
     setCustomInput(preset.label);
-    fetchCheatsheetData(preset.label, preset.category);
+    fetchCheatsheetData(preset.label, preset.category, undefined);
+  };
+
+  const handleSelectSavedCheatsheet = (savedDoc) => {
+    setCheatsheet(savedDoc);
+    setActiveTopic(savedDoc.title || savedDoc.lessonTitle);
+    setIsSearchOpen(false);
   };
 
   const handlePrint = () => {
@@ -192,7 +250,7 @@ export const CheatsheetViewer = ({
   };
 
   const handleSave = async () => {
-    if (!cheatsheet || saving) return;
+    if (!cheatsheet || saving || cheatsheet.isDemo) return;
     setSaving(true);
     setSaveStatus(null);
     setSaveMessage(null);
@@ -209,7 +267,8 @@ export const CheatsheetViewer = ({
 
       if (res?.success) {
         setSaveStatus('saved');
-        setSaveMessage('Cheatsheet saved successfully to MongoDB Atlas!');
+        setSaveMessage('Cheatsheet saved successfully to database!');
+        loadSavedCheatsheets();
       } else {
         throw new Error(res?.message || 'Failed to save cheatsheet.');
       }
@@ -301,7 +360,11 @@ export const CheatsheetViewer = ({
                 <span>AI Visual Cheatsheet Generator</span>
               </h2>
               <p className="text-xs text-slate-400">
-                Topic: <span className="font-bold text-indigo-300">{activeTopic}</span> • High-Yield Revision Matrix
+                {activeTopic ? (
+                  <>Topic: <span className="font-bold text-indigo-300">{activeTopic}</span> • High-Yield Revision Matrix</>
+                ) : (
+                  <>Search any topic to generate a dense, exam-ready revision sheet</>
+                )}
               </p>
             </div>
           </div>
@@ -322,10 +385,13 @@ export const CheatsheetViewer = ({
                 {/* Save Button */}
                 <button
                   onClick={handleSave}
-                  disabled={saving || saveStatus === 'saved'}
+                  disabled={saving || saveStatus === 'saved' || Boolean(cheatsheet?.isDemo)}
+                  title={cheatsheet?.isDemo ? 'Demo data cannot be saved' : 'Save cheatsheet'}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border flex items-center space-x-1.5 ${
                     saveStatus === 'saved'
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : cheatsheet?.isDemo
+                      ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed opacity-50'
                       : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-white/20'
                   }`}
                 >
@@ -336,7 +402,7 @@ export const CheatsheetViewer = ({
                   ) : (
                     <Save className="w-3.5 h-3.5" />
                   )}
-                  <span>{saving ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}</span>
+                  <span>{saving ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : cheatsheet?.isDemo ? 'Save (Disabled in Demo)' : 'Save'}</span>
                 </button>
 
                 {/* Copy Structured Text */}
@@ -489,11 +555,89 @@ export const CheatsheetViewer = ({
           <h3 className="text-base font-bold text-white">Cheatsheet Generation Notice</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">{error}</p>
           <button
-            onClick={() => fetchCheatsheetData(activeTopic, activeContext)}
+            onClick={() => fetchCheatsheetData(activeTopic, '')}
             className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg"
           >
             Regenerate Cheatsheet
           </button>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* STANDALONE EMPTY STATE: SEARCH & SAVED CHEATSHEETS */}
+      {/* ======================================================== */}
+      {!loading && !cheatsheet && !error && (
+        <div className="space-y-6">
+          <div className="rounded-3xl p-8 sm:p-12 bg-[#0d1322] border border-white/10 shadow-2xl text-center space-y-6">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-xl font-black text-white tracking-tight">
+                Visual Cheatsheet Studio
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Generate high-yield visual cheat sheets with formulas, code snippets, curves, comparison tables, and exam traps across any domain.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-black shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2 mx-auto"
+            >
+              <Search className="w-4 h-4" />
+              <span>Search a Topic to Generate</span>
+            </button>
+          </div>
+
+          {/* Saved Cheatsheets Collection */}
+          {savedCheatsheets && savedCheatsheets.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+                  <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Saved Cheatsheets ({savedCheatsheets.length})</span>
+                </h4>
+                {loadingSaved && <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {savedCheatsheets.map((saved, idx) => (
+                  <div
+                    key={saved._id || idx}
+                    onClick={() => handleSelectSavedCheatsheet(saved)}
+                    className="p-5 rounded-2xl bg-[#0b0f19] hover:bg-[#111627] border border-white/10 hover:border-indigo-500/40 transition-all cursor-pointer space-y-3 group shadow-lg"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="px-2 py-0.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold uppercase text-[10px]">
+                        {saved.topicDomain || 'General'}
+                      </span>
+                      <span className="text-[11px] text-slate-400 flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{saved.cards?.length || 0} cards</span>
+                      </span>
+                    </div>
+
+                    <div>
+                      <h5 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
+                        {saved.title || saved.lessonTitle}
+                      </h5>
+                      <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                        {saved.overview || saved.subtitle || 'Revision cheatsheet notes.'}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{saved.unitNumber || 'UNIT REVISION'}</span>
+                      <span className="text-indigo-400 font-bold flex items-center space-x-1 group-hover:translate-x-0.5 transition-transform">
+                        <span>Open</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -509,234 +653,225 @@ export const CheatsheetViewer = ({
               : 'bg-[#0b0f19] text-slate-100 border-white/10'
           }`}
         >
-          {/* Header Banner */}
-          <div className={`border-b pb-6 mb-8 text-center relative ${isPaper ? 'border-slate-300' : 'border-white/10'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className={`px-3 py-1 rounded-lg text-xs font-mono font-bold uppercase tracking-wider border ${
-                isPaper ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-indigo-950/60 text-indigo-300 border-indigo-500/30'
+          {/* Demo Mode Banner */}
+          {cheatsheet.isDemo && (
+            <div className="mb-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+              <span>Cheatsheet generated in offline demo mode. Saving is disabled.</span>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* HEADER SECTION */}
+          {/* ======================================================== */}
+          <div className={`pb-6 mb-8 border-b ${isPaper ? 'border-slate-300' : 'border-white/10'} space-y-4`}>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <span className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-black uppercase tracking-wider ${
+                  isPaper ? 'bg-indigo-100 text-indigo-800' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                }`}>
+                  {cheatsheet.unitNumber || 'UNIT REVISION'}
+                </span>
+                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase ${
+                  isPaper ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-slate-300'
+                }`}>
+                  {cheatsheet.topicDomain || 'General'}
+                </span>
+              </div>
+
+              <div className="text-[11px] font-mono text-slate-400">
+                1-PAGE HIGH YIELD REVISION MATRIX
+              </div>
+            </div>
+
+            <div>
+              <h1 className={`text-2xl sm:text-4xl font-black tracking-tight ${
+                isPaper ? 'text-slate-950' : 'text-white'
               }`}>
-                &lt;/&gt; PadhAI Visual Matrix
-              </div>
-
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block" />
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block" />
-              </div>
+                {cheatsheet.title || activeTopic}
+              </h1>
+              {cheatsheet.subtitle && (
+                <p className={`text-xs sm:text-sm font-semibold mt-1 ${
+                  isPaper ? 'text-indigo-700' : 'text-indigo-400'
+                }`}>
+                  {cheatsheet.subtitle}
+                </p>
+              )}
             </div>
 
-            <h1 className={`text-2xl sm:text-4xl font-black uppercase tracking-tight ${
-              isPaper ? 'text-slate-950' : 'text-white'
-            }`}>
-              {cheatsheet.unitNumber ? `${cheatsheet.unitNumber} CHEATSHEET` : 'REVISION CHEATSHEET'}
-            </h1>
-
-            <div className="inline-block mt-2 px-5 py-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white text-xs sm:text-sm font-black uppercase tracking-wide shadow-md">
-              {cheatsheet.title || activeTopic}
-            </div>
-
+            {/* Topic Overview Synthesis */}
             {cheatsheet.overview && (
-              <p className={`text-xs sm:text-sm mt-3 max-w-3xl mx-auto font-medium leading-relaxed ${
-                isPaper ? 'text-slate-600' : 'text-slate-400'
+              <div className={`p-4 rounded-2xl border text-xs sm:text-sm leading-relaxed ${
+                isPaper
+                  ? 'bg-slate-50 border-slate-200 text-slate-700'
+                  : 'bg-white/[0.02] border-white/5 text-slate-300'
               }`}>
-                {cheatsheet.overview}
-              </p>
+                <span className="font-bold text-indigo-500 mr-1.5">Overview:</span>
+                <MarkdownRenderer content={cheatsheet.overview} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+              </div>
             )}
+
           </div>
 
-          {/* Numbered Cards Grid (4 Columns on Desktop, exactly like 15ForTeen Infographic!) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5 mb-8">
+          {/* ======================================================== */}
+          {/* CARDS GRID: 2-COLUMN STRUCTURED STUDY UNITS */}
+          {/* ======================================================== */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
             {cardsToRender.map((card, idx) => {
               const colorTheme = BADGE_COLORS[idx % BADGE_COLORS.length];
-              const cardNum = card.number || idx + 1;
 
               return (
                 <div
                   key={idx}
-                  className={`rounded-2xl p-4 sm:p-5 flex flex-col justify-between border transition-all ${
+                  className={`rounded-2xl p-5 border transition-all flex flex-col justify-between space-y-4 shadow-sm ${
                     isPaper
-                      ? `bg-white ${colorTheme.lightBorder} shadow-sm hover:shadow-md`
-                      : `bg-[#0d1322] ${colorTheme.border} hover:bg-[#10172a]`
+                      ? `${colorTheme.lightBg} ${colorTheme.lightBorder} text-slate-900`
+                      : `bg-[#0d1322] ${colorTheme.border} text-slate-200`
                   }`}
                 >
-                  <div className="space-y-3">
-                    
-                    {/* Card Header: Number + Title + Category */}
-                    <div className="flex items-start justify-between gap-2 border-b pb-2">
-                      <h3 className={`text-xs sm:text-sm font-black uppercase tracking-tight leading-snug ${
-                        isPaper ? colorTheme.lightHeader : colorTheme.text
-                      }`}>
-                        {cardNum}. {card.title}
-                      </h3>
-                      {card.categoryType && (
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase shrink-0 border ${
-                          isPaper
-                            ? 'bg-slate-100 text-slate-700 border-slate-300'
-                            : 'bg-white/5 text-slate-300 border-white/10'
+                  {/* Card Header */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center ${
+                          isPaper ? 'bg-slate-900 text-white' : 'bg-white/10 text-white'
                         }`}>
-                          {card.categoryType}
+                          {card.number || idx + 1}
                         </span>
-                      )}
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                          isPaper ? colorTheme.lightHeader : colorTheme.badge
+                        }`}>
+                          {card.categoryType || 'Concept'}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Definition in Simple Language */}
-                    {card.definition && (
-                      <p className={`text-[11.5px] leading-relaxed font-medium ${
-                        isPaper ? 'text-slate-800' : 'text-slate-300'
-                      }`}>
-                        {card.definition}
-                      </p>
-                    )}
+                    <h3 className={`text-base font-black tracking-tight leading-snug ${
+                      isPaper ? colorTheme.lightHeader : 'text-white'
+                    }`}>
+                      {card.title}
+                    </h3>
+                  </div>
 
-                    {/* Bullet Points */}
-                    {card.bulletPoints && card.bulletPoints.length > 0 && (
-                      <ul className="space-y-1.5 pt-0.5 text-[11px]">
-                        {card.bulletPoints.map((bp, bIdx) => (
-                          <li key={bIdx} className="flex items-start space-x-1.5">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${
-                              isPaper ? 'bg-indigo-600' : 'bg-indigo-400'
-                            }`} />
-                            <span className={isPaper ? 'text-slate-700' : 'text-slate-300'}>
-                              <MarkdownRenderer content={bp} />
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                  {/* Card Definition */}
+                  {card.definition && (
+                    <div className={`text-xs leading-relaxed ${isPaper ? 'text-slate-800' : 'text-slate-300'}`}>
+                      <MarkdownRenderer content={card.definition} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+                    </div>
+                  )}
 
-                    {/* Mathematical Formula (if applicable) */}
-                    {card.formula && (
-                      <div className={`p-2.5 rounded-xl border font-mono text-[11px] ${
-                        isPaper
-                          ? 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
-                          : 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200'
-                      }`}>
-                        <div className="flex items-center space-x-1 mb-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                          <Calculator className="w-3 h-3" />
-                          <span>Formula / Governing Equation:</span>
-                        </div>
-                        <div className="font-semibold overflow-x-auto py-0.5">
-                          <MarkdownRenderer content={`$$${card.formula}$$`} />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Code Snippet (ONLY if CS/tech topic) */}
-                    {card.codeSnippet && (
-                      <div className={`rounded-xl border overflow-hidden text-[10.5px] font-mono ${
-                        isPaper ? 'border-slate-700 bg-slate-950 text-slate-100' : 'border-white/10 bg-[#060911] text-cyan-300'
-                      }`}>
-                        <div className="flex items-center justify-between px-3 py-1 bg-slate-900 border-b border-white/5 text-[9.5px] text-slate-400 font-bold uppercase">
-                          <span className="flex items-center space-x-1">
-                            <Code2 className="w-3 h-3 text-purple-400" />
-                            <span>{card.codeLanguage || 'Code'}</span>
+                  {/* Bullet Sub-points */}
+                  {card.bulletPoints && card.bulletPoints.length > 0 && (
+                    <ul className={`space-y-1.5 text-xs ${isPaper ? 'text-slate-700' : 'text-slate-300'}`}>
+                      {card.bulletPoints.map((bullet, bIdx) => (
+                        <li key={bIdx} className="flex items-start space-x-2">
+                          <span className={`font-bold mt-0.5 shrink-0 ${isPaper ? 'text-indigo-600' : 'text-indigo-400'}`}>•</span>
+                          <span className="leading-snug">
+                            <MarkdownRenderer content={bullet} theme={isPaper ? 'paper' : 'dark'} compact={true} />
                           </span>
-                        </div>
-                        <pre className="p-2.5 overflow-x-auto m-0 leading-relaxed font-mono">
-                          <code>{card.codeSnippet}</code>
-                        </pre>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Mathematical Formula */}
+                  {card.formula && (
+                    <div className={`p-3 rounded-xl font-mono text-xs border ${
+                      isPaper ? 'bg-white border-slate-300 text-slate-900' : 'bg-black/40 border-white/10 text-cyan-300'
+                    }`}>
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1">Mathematical Relation:</span>
+                      <MarkdownRenderer content={`$$${card.formula}$$`} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+                    </div>
+                  )}
+
+                  {/* Code Snippet */}
+                  {card.codeSnippet && (
+                    <div className="rounded-xl overflow-hidden text-xs">
+                      <MarkdownRenderer content={`\`\`\`${card.codeLanguage || ''}\n${card.codeSnippet}\n\`\`\``} theme={isPaper ? 'paper' : 'dark'} />
+                    </div>
+                  )}
+
+                  {/* Concrete Everyday Real-World Example */}
+                  {card.example && (
+                    <div className={`p-3 rounded-xl text-xs border flex items-start space-x-2.5 ${
+                      isPaper ? 'bg-amber-50/80 border-amber-300 text-amber-950' : 'bg-amber-500/10 border-amber-500/20 text-amber-200'
+                    }`}>
+                      <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-[10px] uppercase block tracking-wider">Intuitive Example:</span>
+                        <span className="leading-snug">{card.example}</span>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Visual ASCII / Graph / Schedule / Tree */}
-                    {card.visualDiagram && (
-                      <div className={`p-2.5 rounded-xl border font-mono text-[10px] overflow-x-auto ${
-                        isPaper
-                          ? 'bg-slate-900 text-emerald-300 border-slate-700 shadow-sm'
-                          : 'bg-[#060911] text-cyan-300 border-cyan-500/30 shadow-inner'
-                      }`}>
-                        <div className="text-[9px] uppercase tracking-wider text-slate-400 font-sans font-bold mb-1 flex items-center space-x-1">
-                          <Layers className="w-3 h-3" />
-                          <span>Visual Curve / Diagram / Schedule:</span>
-                        </div>
-                        <pre className="whitespace-pre font-mono leading-tight">{card.visualDiagram}</pre>
+                  {/* Visual Diagram / ASCII Curve */}
+                  {card.visualDiagram && (
+                    <div className={`p-3 rounded-xl border font-mono text-[10px] sm:text-xs overflow-x-auto whitespace-pre leading-tight ${
+                      isPaper ? 'bg-slate-900 text-emerald-400 border-slate-700' : 'bg-black/60 text-emerald-300 border-white/10'
+                    }`}>
+                      {card.visualDiagram}
+                    </div>
+                  )}
+
+                  {/* Exam Trap / Topper Tip */}
+                  {card.examTip && (
+                    <div className={`p-3 rounded-xl text-xs border flex items-start space-x-2 ${
+                      isPaper ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-rose-500/10 border-rose-500/20 text-rose-200'
+                    }`}>
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <div className="leading-snug">
+                        <span className="font-bold text-[10px] uppercase block tracking-wider">Exam Alert / Trap:</span>
+                        <span>{card.examTip}</span>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Real-World Relatable Example */}
-                    {card.example && (
-                      <div className={`p-2.5 rounded-xl border text-[11px] ${
-                        isPaper
-                          ? 'bg-amber-50/90 border-amber-300 text-amber-950'
-                          : 'bg-amber-500/10 border-amber-500/25 text-amber-200'
-                      }`}>
-                        <span className="font-bold flex items-center space-x-1 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
-                          <Lightbulb className="w-3 h-3" />
-                          <span>Relatable Real-World Example:</span>
-                        </span>
-                        <p className="leading-relaxed font-medium">{card.example}</p>
-                      </div>
-                    )}
-
-                    {/* High-Yield Exam Tip */}
-                    {card.examTip && (
-                      <div className={`p-2 rounded-xl border text-[10px] flex items-start space-x-1.5 ${
-                        isPaper
-                          ? 'bg-rose-50/80 border-rose-200 text-rose-900'
-                          : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
-                      }`}>
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
-                        <span className="leading-snug font-medium">{card.examTip}</span>
-                      </div>
-                    )}
-
-                  </div>
-
-                  {/* Card Number Footer */}
-                  <div className="pt-3 mt-3 border-t border-dashed border-slate-200 dark:border-white/5 flex items-center justify-between text-[9px] text-slate-400 font-mono">
-                    <span className="uppercase font-bold tracking-wider">{card.categoryType || 'Concept'}</span>
-                    <span>Card #{cardNum}</span>
-                  </div>
                 </div>
               );
             })}
           </div>
 
           {/* ======================================================== */}
-          {/* COMPARISON TABLE */}
+          {/* COMPARISON MATRIX / PARADIGM TABLE */}
           {/* ======================================================== */}
-          {cheatsheet.comparisonTable && cheatsheet.comparisonTable.rows?.length > 0 && (
-            <div className={`rounded-2xl p-5 sm:p-6 mb-6 border ${
-              isPaper ? 'bg-slate-50 border-slate-300' : 'bg-[#0d1322] border-white/10'
+          {cheatsheet.comparisonTable && cheatsheet.comparisonTable.headers && cheatsheet.comparisonTable.headers.length > 0 && (
+            <div className={`rounded-2xl p-6 mb-8 border ${
+              isPaper ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0d1322] border-white/10 text-slate-100'
             }`}>
-              <h3 className={`text-xs sm:text-sm font-black uppercase tracking-tight mb-4 flex items-center space-x-2 ${
-                isPaper ? 'text-indigo-800' : 'text-indigo-300'
-              }`}>
-                <Table className="w-4 h-4" />
-                <span>{cheatsheet.comparisonTable.title || 'Core Paradigm Comparison Matrix'}</span>
-              </h3>
+              <div className="flex items-center space-x-2 mb-4">
+                <Table className="w-4 h-4 text-indigo-500" />
+                <h3 className="text-sm font-black uppercase tracking-wider">
+                  {cheatsheet.comparisonTable.title || 'Core Paradigm Comparison Table'}
+                </h3>
+              </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-[11px] text-left border-collapse">
+                <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className={isPaper ? 'bg-slate-200/80 text-slate-900' : 'bg-white/5 text-slate-200'}>
-                      {(cheatsheet.comparisonTable.headers || ['Concept', 'Definition', 'Example / Behavior', 'Primary Use']).map((h, hIdx) => (
-                        <th key={hIdx} className="p-3 font-black uppercase tracking-wider border-b border-slate-300 dark:border-white/10">
+                    <tr className={`border-b ${isPaper ? 'border-slate-300 bg-slate-200/70 text-slate-900' : 'border-white/10 bg-white/5 text-white'}`}>
+                      {cheatsheet.comparisonTable.headers.map((h, hIdx) => (
+                        <th key={hIdx} className="p-3 font-black uppercase text-[11px] tracking-wider">
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {cheatsheet.comparisonTable.rows.map((row, rIdx) => (
-                      <tr
-                        key={rIdx}
-                        className={`border-b transition-colors ${
-                          isPaper
-                            ? rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'
-                            : rIdx % 2 === 0 ? 'bg-[#080c14]' : 'bg-[#0b0f19]'
-                        } ${isPaper ? 'border-slate-200 text-slate-800' : 'border-white/5 text-slate-300'}`}
-                      >
-                        <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400 align-top">
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 inline-block font-semibold">
-                            {row.type}
-                          </span>
+                  <tbody className={`divide-y ${isPaper ? 'divide-slate-200' : 'divide-white/5'}`}>
+                    {(cheatsheet.comparisonTable.rows || []).map((row, rIdx) => (
+                      <tr key={rIdx} className={isPaper ? 'hover:bg-slate-100' : 'hover:bg-white/[0.02]'}>
+                        <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">
+                          {row.type || row.col1 || 'Concept'}
                         </td>
-                        <td className="p-3 leading-relaxed align-top">{row.definition}</td>
-                        <td className="p-3 font-medium align-top text-emerald-600 dark:text-emerald-400">{row.example}</td>
-                        <td className="p-3 font-medium align-top">{row.use}</td>
+                        <td className="p-3 leading-relaxed">
+                          {row.definition || row.col2 || '-'}
+                        </td>
+                        <td className="p-3 leading-relaxed">
+                          {row.example || row.col3 || '-'}
+                        </td>
+                        <td className="p-3 font-medium">
+                          {row.use || row.col4 || '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -746,7 +881,7 @@ export const CheatsheetViewer = ({
           )}
 
           {/* ======================================================== */}
-          {/* QUICK REVISION + EXAM POINTS (2-Column Split) */}
+          {/* QUICK REVISION POINTS & EXAM QUESTIONS */}
           {/* ======================================================== */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
             
