@@ -92,9 +92,17 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
 
   // Loading & statuses
   const [loading, setLoading] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
   const [modifying, setModifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const PROGRESS_MESSAGES = [
+    "Analyzing subject scope & pedagogical objectives...",
+    "Scaffolding day-by-day progression with Bloom's Taxonomy...",
+    "Structuring module milestones & daily lesson competencies...",
+    "Synthesizing curriculum into production JSON outline..."
+  ];
 
   const togglePreference = (prefId) => {
     setFormData((prev) => {
@@ -117,7 +125,12 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
     }
 
     setLoading(true);
+    setProgressStep(0);
     setError(null);
+
+    const progressTimer = setInterval(() => {
+      setProgressStep((prev) => (prev + 1) % PROGRESS_MESSAGES.length);
+    }, 4000);
 
     const payload = {
       topic: formData.topic.trim(),
@@ -140,8 +153,9 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
       }
     } catch (err) {
       console.error('Course generation error:', err);
-      setError(err.message || 'Error communicating with AI service. Please try again.');
+      setError(err.message || 'Failed to generate course outline. Please check your API key.');
     } finally {
+      clearInterval(progressTimer);
       setLoading(false);
     }
   };
@@ -481,10 +495,10 @@ export const CourseWizard = ({ onCourseSaved, onStartLearning }) => {
                   className="w-full py-4 rounded-2xl font-black text-sm text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 active:scale-[0.99]"
                 >
                   {loading ? (
-                    <>
+                    <div className="flex items-center space-x-2.5">
                       <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                      <span>Generating Pedagogical Plan with Gemini...</span>
-                    </>
+                      <span className="text-xs sm:text-sm font-semibold">{PROGRESS_MESSAGES[progressStep]}</span>
+                    </div>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />

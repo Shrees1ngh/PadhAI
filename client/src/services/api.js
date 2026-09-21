@@ -46,7 +46,7 @@ export const checkHealth = async () => {
 
 export const generateCourseOutline = async (setupParams, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/courses/generate-outline', setupParams, { headers });
+  return await api.post('/courses/generate-outline', setupParams, { headers, timeout: 90000 });
 };
 
 export const modifyCourseOutline = async ({ currentOutline, modifications, instruction, setupParams }, apiKey) => {
@@ -55,7 +55,7 @@ export const modifyCourseOutline = async ({ currentOutline, modifications, instr
   return await api.post(
     '/courses/modify-outline',
     { currentOutline, modifications: modText, setupParams },
-    { headers }
+    { headers, timeout: 90000 }
   );
 };
 
@@ -73,7 +73,7 @@ export const generateLessonContent = async (payload, apiKey) => {
     ...payload,
     currentLevel: payload.currentLevel || payload.learnerLevel || 'Beginner',
   };
-  return await api.post('/lessons/generate', normalizedPayload, { headers });
+  return await api.post('/lessons/generate', normalizedPayload, { headers, timeout: 90000 });
 };
 
 export const saveLessonContent = async (payload) => {
@@ -94,7 +94,7 @@ export const toggleLessonComplete = async (courseId, moduleIndex, lessonIndex, c
 
 export const generateLessonQuiz = async (payload, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/quizzes/generate', payload, { headers });
+  return await api.post('/quizzes/generate', payload, { headers, timeout: 90000 });
 };
 
 export const saveQuizAttempt = async (payload) => {
@@ -132,7 +132,7 @@ export const fetchRecommendedVideos = async ({
 
 export const sendTutorChatMessage = async (payload, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/ai-tutor/chat', payload, { headers });
+  return await api.post('/ai-tutor/chat', payload, { headers, timeout: 90000 });
 };
 
 export const chatWithAITutor = sendTutorChatMessage;
@@ -148,7 +148,7 @@ export const analyzeStudyMaterial = async (formData, apiKey) => {
   if (apiKey) {
     headers['x-gemini-key'] = apiKey;
   }
-  return await api.post('/study-materials/analyze', formData, { headers });
+  return await api.post('/study-materials/analyze', formData, { headers, timeout: 90000 });
 };
 
 // ==================================
@@ -160,6 +160,7 @@ export const generateCheatsheet = async (payload, apiKey, options = {}) => {
   return await api.post('/cheatsheets/generate', payload, {
     headers: { ...headers, ...(options.headers || {}) },
     signal: options.signal,
+    timeout: 90000,
   });
 };
 
@@ -181,7 +182,7 @@ export const fetchSavedCheatsheets = async () => {
 
 export const generateFlashcards = async (payload, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/flashcards/generate', payload, { headers });
+  return await api.post('/flashcards/generate', payload, { headers, timeout: 90000 });
 };
 
 export const saveFlashcards = async (payload) => {
@@ -234,7 +235,7 @@ export const completeTopicProgress = async ({ courseId, moduleIndex, lessonIndex
 
 export const generateQuickLearnTopic = async (payload, apiKey) => {
   const headers = apiKey ? { 'x-gemini-key': apiKey } : {};
-  return await api.post('/topics/quick-learn', payload, { headers });
+  return await api.post('/topics/quick-learn', payload, { headers, timeout: 90000 });
 };
 
 export const saveTopic = async (payload) => {
