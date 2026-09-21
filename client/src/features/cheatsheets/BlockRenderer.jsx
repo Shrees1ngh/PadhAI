@@ -837,10 +837,263 @@ export const QuickSummaryBlock = ({ block, isPaper }) => (
 );
 
 // =========================================================================
+// 14. SIMPLE EXPLANATION BLOCK
+// =========================================================================
+export const SimpleExplanationBlock = ({ block, isPaper }) => (
+  <div
+    className={`p-5 rounded-2xl border transition-all shadow-sm ${
+      isPaper
+        ? 'bg-blue-50/70 border-blue-200 text-slate-900'
+        : 'bg-blue-950/20 border-blue-500/30 text-slate-100'
+    }`}
+  >
+    <div className="flex items-center space-x-2.5 mb-3">
+      <div
+        className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+          isPaper ? 'bg-blue-600 text-white' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+        }`}
+      >
+        <BookOpen className="w-4 h-4" />
+      </div>
+      <h3 className={`text-sm font-bold uppercase tracking-wider ${isPaper ? 'text-blue-900' : 'text-blue-300'}`}>
+        Simple Explanation
+      </h3>
+    </div>
+    <MarkdownRenderer
+      content={block.text}
+      theme={isPaper ? 'paper' : 'dark'}
+      className="text-base font-normal leading-relaxed"
+    />
+  </div>
+);
+
+// =========================================================================
+// 15. STEP BY STEP BLOCK
+// =========================================================================
+export const StepByStepBlock = ({ block, isPaper }) => (
+  <div
+    className={`p-5 rounded-2xl border transition-all shadow-sm ${
+      isPaper
+        ? 'bg-white border-slate-200 text-slate-900'
+        : 'bg-slate-900/50 border-white/10 text-slate-100'
+    }`}
+  >
+    <div className="flex items-center space-x-2.5 mb-4">
+      <div
+        className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+          isPaper ? 'bg-indigo-600 text-white' : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+        }`}
+      >
+        <CheckCircle2 className="w-4 h-4" />
+      </div>
+      <h3 className={`text-sm font-bold uppercase tracking-wider ${isPaper ? 'text-indigo-900' : 'text-indigo-300'}`}>
+        {block.title || 'Step-by-Step Breakdown'}
+      </h3>
+    </div>
+    <div className="space-y-3">
+      {(block.steps || []).map((stepItem, idx) => (
+        <div
+          key={idx}
+          className={`p-3.5 rounded-xl border flex items-start space-x-3 ${
+            isPaper
+              ? 'bg-slate-50 border-slate-200 text-slate-800'
+              : 'bg-[#080c14] border-white/5 text-slate-200'
+          }`}
+        >
+          <div
+            className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 ${
+              isPaper
+                ? 'bg-indigo-600 text-white'
+                : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+            }`}
+          >
+            {stepItem.step || idx + 1}
+          </div>
+          <div className="flex-1">
+            <h4 className="text-xs font-bold mb-1">{stepItem.title}</h4>
+            <MarkdownRenderer
+              content={stepItem.explanation}
+              theme={isPaper ? 'paper' : 'dark'}
+              className="text-xs leading-relaxed opacity-90"
+              compact={true}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// =========================================================================
+// 16. TAKEAWAYS BLOCK
+// =========================================================================
+export const TakeawaysBlock = ({ block, isPaper }) => (
+  <div
+    className={`p-5 rounded-2xl border transition-all shadow-sm ${
+      isPaper
+        ? 'bg-emerald-50/70 border-emerald-200 text-slate-900'
+        : 'bg-emerald-950/20 border-emerald-500/30 text-slate-100'
+    }`}
+  >
+    <div className="flex items-center space-x-2.5 mb-3">
+      <div
+        className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+          isPaper ? 'bg-emerald-600 text-white' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+        }`}
+      >
+        <CheckCircle2 className="w-4 h-4" />
+      </div>
+      <h3 className={`text-sm font-bold uppercase tracking-wider ${isPaper ? 'text-emerald-900' : 'text-emerald-300'}`}>
+        Key Takeaways & Invariants
+      </h3>
+    </div>
+    <ul className="space-y-2 text-xs leading-relaxed">
+      {(block.items || []).map((item, idx) => (
+        <li key={idx} className="flex items-start space-x-2">
+          <span className="text-emerald-400 font-bold flex-shrink-0">✓</span>
+          <div className="flex-1">
+            <MarkdownRenderer content={item} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+// =========================================================================
+// 17. MINI QUIZ BLOCK
+// =========================================================================
+export const MiniQuizBlock = ({ block, isPaper }) => {
+  const [selectedAnswers, setSelectedAnswers] = React.useState({});
+  const [revealed, setRevealed] = React.useState(false);
+
+  const questions = block.questions || [];
+
+  const handleSelect = (qIdx, optIdx) => {
+    if (revealed) return;
+    setSelectedAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
+  };
+
+  const score = questions.reduce((acc, q, idx) => {
+    return selectedAnswers[idx] === q.correctOptionIndex ? acc + 1 : acc;
+  }, 0);
+
+  return (
+    <div
+      className={`p-5 sm:p-6 rounded-2xl border transition-all shadow-sm space-y-5 ${
+        isPaper
+          ? 'bg-white border-cyan-200 text-slate-900'
+          : 'bg-slate-900/60 border-cyan-500/30 text-slate-100'
+      }`}
+    >
+      <div className="flex items-center justify-between border-b pb-3 border-white/5">
+        <div className="flex items-center space-x-2.5">
+          <div
+            className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+              isPaper ? 'bg-cyan-600 text-white' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+          </div>
+          <h3 className={`text-sm font-bold uppercase tracking-wider ${isPaper ? 'text-cyan-900' : 'text-cyan-300'}`}>
+            Knowledge Check (Mini Quiz)
+          </h3>
+        </div>
+        {revealed && (
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            Score: {score} / {questions.length}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-5">
+        {questions.map((q, qIdx) => {
+          const picked = selectedAnswers[qIdx];
+
+          return (
+            <div
+              key={qIdx}
+              className={`p-4 rounded-xl border space-y-3 ${
+                isPaper ? 'bg-slate-50 border-slate-200' : 'bg-[#080c14] border-white/5'
+              }`}
+            >
+              <p className="text-xs sm:text-sm font-bold">
+                {qIdx + 1}. {q.question}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {q.options?.map((opt, optIdx) => {
+                  const isSelected = picked === optIdx;
+                  let optStyle = isPaper
+                    ? 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
+                    : 'bg-[#0d1322] border-white/5 text-slate-300 hover:border-white/15';
+
+                  if (revealed) {
+                    if (optIdx === q.correctOptionIndex) {
+                      optStyle = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold';
+                    } else if (isSelected) {
+                      optStyle = 'bg-rose-500/20 border-rose-500/50 text-rose-300 line-through';
+                    }
+                  } else if (isSelected) {
+                    optStyle = 'bg-cyan-600/30 border-cyan-500 text-cyan-200 font-bold shadow-sm';
+                  }
+
+                  return (
+                    <button
+                      key={optIdx}
+                      onClick={() => handleSelect(qIdx, optIdx)}
+                      className={`p-3 rounded-xl border text-xs text-left transition-all ${optStyle}`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {revealed && q.explanation && (
+                <div
+                  className={`p-3 rounded-xl text-xs leading-relaxed ${
+                    isPaper ? 'bg-cyan-50 text-cyan-900' : 'bg-cyan-950/30 border border-cyan-500/20 text-cyan-300'
+                  }`}
+                >
+                  <span className="font-bold">Explanation: </span>
+                  <MarkdownRenderer content={q.explanation} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="flex items-center space-x-3 pt-2">
+          {!revealed ? (
+            <button
+              onClick={() => setRevealed(true)}
+              disabled={Object.keys(selectedAnswers).length < questions.length}
+              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all disabled:opacity-40"
+            >
+              Check Answers
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setSelectedAnswers({});
+                setRevealed(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-slate-200 transition-all"
+            >
+              Reset Quiz
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// =========================================================================
 // BLOCK REGISTRY MAP
 // =========================================================================
 const BLOCK_REGISTRY = {
   definition: DefinitionBlock,
+  simple_explanation: SimpleExplanationBlock,
   key_points: KeyPointsBlock,
   formula: FormulaBlock,
   chart: ChartBlock,
@@ -848,19 +1101,30 @@ const BLOCK_REGISTRY = {
   table: TableBlock,
   code: CodeBlockItem,
   syntax: CodeBlockItem,
+  step_by_step: StepByStepBlock,
   example: ExampleBlock,
   real_life: RealLifeBlock,
   common_mistakes: CommonMistakesBlock,
   timeline: TimelineBlock,
   mnemonic: MnemonicBlock,
   quick_summary: QuickSummaryBlock,
+  takeaways: TakeawaysBlock,
+  mini_quiz: MiniQuizBlock,
 };
 
 /**
  * Determine if a block should span full width in grid layout
  */
 export const isFullWidthBlock = (type) => {
-  return type === 'chart' || type === 'diagram' || type === 'table' || type === 'code' || type === 'timeline';
+  return (
+    type === 'chart' ||
+    type === 'diagram' ||
+    type === 'table' ||
+    type === 'code' ||
+    type === 'timeline' ||
+    type === 'step_by_step' ||
+    type === 'mini_quiz'
+  );
 };
 
 /**
@@ -885,3 +1149,4 @@ export const BlockRenderer = ({ block, isPaper }) => {
 };
 
 export default BlockRenderer;
+

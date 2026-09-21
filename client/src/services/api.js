@@ -258,5 +258,9 @@ export const completeSavedTopic = async (topicId, payload = {}) => {
   return await api.patch(`/topics/${topicId}/complete`, payload);
 };
 
+export const deleteSavedTopic = async (topicId) => {
+  return await api.delete(`/topics/${topicId}`);
+};
+
 export default api;
 

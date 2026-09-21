@@ -372,7 +372,16 @@ export function App() {
               }
             />
 
-            {/* 2. Quick Learn (Single Topic Learning View) */}
+            {/* 2. Quick Learn (Single Topic Learning View & Search Hub) */}
+            <Route
+              path="/learn"
+              element={
+                <QuickLearnView
+                  onBack={() => navigate('/')}
+                  onOpenTutor={() => {}}
+                />
+              }
+            />
             <Route
               path="/learn/:topic"
               element={
@@ -381,6 +390,10 @@ export function App() {
                   onOpenTutor={() => {}}
                 />
               }
+            />
+            <Route
+              path="/quick-learn"
+              element={<Navigate to="/learn" replace />}
             />
 
             {/* 3. Course Creation Wizard (Protected) */}
