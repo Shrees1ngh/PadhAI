@@ -5,13 +5,13 @@ import {
   getLessonCheatsheetHandler,
   getSavedCheatsheetsHandler,
 } from "./cheatsheets.controller.js";
-import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, requireAuthOrCustomKey } from "../auth/auth.middleware.js";
 import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
-// Cheatsheet Generation & Retrieval Endpoints
-router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateCheatsheetHandler);
+// Cheatsheet Generation & Retrieval Endpoints (Auth runs before rate limiter, require auth unless custom key)
+router.post("/generate", requireAuthOrCustomKey, aiRateLimiter, generateCheatsheetHandler);
 router.post("/save", authenticateToken, saveCheatsheetHandler);
 router.get("/saved", authenticateToken, getSavedCheatsheetsHandler);
 router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLessonCheatsheetHandler);
@@ -24,6 +24,7 @@ router.get("/", (req, res) => {
     endpoints: [
       "POST /api/cheatsheets/generate",
       "POST /api/cheatsheets/save",
+      "GET /api/cheatsheets/saved",
       "GET /api/cheatsheets/:courseId/:moduleIndex/:lessonIndex",
     ],
   });

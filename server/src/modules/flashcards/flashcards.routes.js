@@ -4,13 +4,13 @@ import {
   saveFlashcardsHandler,
   getLessonFlashcardsHandler,
 } from "./flashcards.controller.js";
-import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, requireAuthOrCustomKey } from "../auth/auth.middleware.js";
 import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
-// Flashcard Generation & Retrieval Endpoints
-router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateFlashcardsHandler);
+// Flashcard Generation & Retrieval Endpoints (Auth runs before rate limiter, require auth unless custom key)
+router.post("/generate", requireAuthOrCustomKey, aiRateLimiter, generateFlashcardsHandler);
 router.post("/save", authenticateToken, saveFlashcardsHandler);
 router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLessonFlashcardsHandler);
 

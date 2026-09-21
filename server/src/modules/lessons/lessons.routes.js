@@ -6,13 +6,13 @@ import {
   markLessonComplete,
 } from "./lessons.controller.js";
 
-import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, requireAuthOrCustomKey } from "../auth/auth.middleware.js";
 import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
-// Lesson generation & persistence endpoints
-router.post("/generate", aiRateLimiter, optionalAuthenticateToken, generateLesson);
+// Lesson generation & persistence endpoints (Auth runs before rate limiter, require auth unless custom key)
+router.post("/generate", requireAuthOrCustomKey, aiRateLimiter, generateLesson);
 router.post("/save", authenticateToken, saveLesson);
 router.get("/:courseId/:moduleIndex/:lessonIndex", authenticateToken, getLesson);
 router.patch("/:courseId/:moduleIndex/:lessonIndex/complete", authenticateToken, markLessonComplete);

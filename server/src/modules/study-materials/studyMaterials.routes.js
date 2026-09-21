@@ -1,6 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
 import { analyzeStudyMaterialHandler } from "./studyMaterials.controller.js";
+import { requireAuthOrCustomKey } from "../auth/auth.middleware.js";
+import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
@@ -71,14 +73,18 @@ const uploadMiddleware = (req, res, next) => {
   });
 };
 
-import { optionalAuthenticateToken } from "../auth/auth.middleware.js";
-import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
-
 /**
  * POST /api/study-materials/analyze
  * Analyzes uploaded study material (PDF, PPT/PPTX, TXT) and generates structured study resources.
+ * Multipart body parsed first, then auth checked, then rate limiter runs.
  */
-router.post("/analyze", aiRateLimiter, optionalAuthenticateToken, uploadMiddleware, analyzeStudyMaterialHandler);
+router.post(
+  "/analyze",
+  uploadMiddleware,
+  requireAuthOrCustomKey,
+  aiRateLimiter,
+  analyzeStudyMaterialHandler
+);
 
 // Status / Health check route for this module
 router.get("/", (req, res) => {

@@ -32,4 +32,6 @@ export const ENV = {
   GOOGLE_CALLBACK_URL:
     process.env.GOOGLE_CALLBACK_URL ||
     "http://localhost:5000/api/auth/google/callback",
+  TRUST_PROXY: process.env.TRUST_PROXY === "true" || process.env.TRUST_PROXY === "1" || false,
+  DAILY_USER_AI_QUOTA: parseInt(process.env.DAILY_USER_AI_QUOTA || "50", 10),
 };

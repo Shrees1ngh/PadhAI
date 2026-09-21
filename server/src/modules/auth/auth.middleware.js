@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import User from "./user.model.js";
 import { ENV } from "../../config/env.js";
 
-
 /**
  * Mandatory authentication middleware.
  * Rejects requests without a valid Bearer JWT.
@@ -18,7 +17,7 @@ export const authenticateToken = async (req, res, next) => {
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required. Please provide a valid authorization token.",
+        message: "Authentication required. Please log in or provide your own Gemini API key.",
       });
     }
 
@@ -105,6 +104,24 @@ export const optionalAuthenticateToken = async (req, res, next) => {
     req.user = null;
   }
   next();
+};
+
+/**
+ * Authentication middleware for AI generation endpoints:
+ * Requires authentication UNLESS the request carries the user's personal x-gemini-key.
+ * If x-gemini-key is present, still attempts optional authentication to populate req.user if logged in.
+ */
+export const requireAuthOrCustomKey = async (req, res, next) => {
+  const customKey =
+    req.headers["x-gemini-key"] ||
+    req.headers["x-api-key"] ||
+    req.body?.apiKey;
+
+  if (customKey && typeof customKey === "string" && customKey.trim().length > 0) {
+    return optionalAuthenticateToken(req, res, next);
+  }
+
+  return authenticateToken(req, res, next);
 };
 
 // Aliases for convenience and backward compatibility

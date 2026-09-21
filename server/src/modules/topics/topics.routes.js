@@ -5,13 +5,13 @@ import {
   getSavedTopics,
   completeTopic,
 } from "./topics.controller.js";
-import { authenticateToken, optionalAuthenticateToken } from "../auth/auth.middleware.js";
+import { authenticateToken, requireAuthOrCustomKey } from "../auth/auth.middleware.js";
 import { aiRateLimiter } from "../auth/rateLimiter.middleware.js";
 
 const router = Router();
 
-// Quick Learn generation (Rate limited AI generation)
-router.post("/quick-learn", aiRateLimiter, optionalAuthenticateToken, quickLearnTopic);
+// Quick Learn generation (Auth runs before rate limiter, require auth unless custom key)
+router.post("/quick-learn", requireAuthOrCustomKey, aiRateLimiter, quickLearnTopic);
 
 // Save topic to profile (Authenticated)
 router.post("/save", authenticateToken, saveTopic);

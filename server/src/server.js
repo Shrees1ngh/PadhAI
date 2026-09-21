@@ -22,6 +22,11 @@ import { securityHeadersMiddleware } from "./modules/auth/securityHeaders.middle
 
 const app = express();
 
+// Trust Proxy behind env flag
+if (ENV.TRUST_PROXY || process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true") {
+  app.set("trust proxy", 1);
+}
+
 // Security Headers Middleware
 app.use(securityHeadersMiddleware);
 

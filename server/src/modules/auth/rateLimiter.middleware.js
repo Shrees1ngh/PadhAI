@@ -1,3 +1,5 @@
+import { ENV } from "../../config/env.js";
+
 /**
  * In-Memory Sliding-Window Rate Limiter
  * Zero external dependencies. Enforces IP/User-based rate limits.
@@ -26,7 +28,10 @@ class MemoryRateLimiter {
   middleware() {
     return (req, res, next) => {
       // Derive key from authenticated userId or client IP
-      const key = (req.user && req.user.id) ? `user_${req.user.id}` : `ip_${req.ip || req.connection.remoteAddress || "unknown"}`;
+      const key =
+        req.user && req.user.id
+          ? `user_${req.user.id}`
+          : `ip_${req.ip || req.connection?.remoteAddress || "unknown"}`;
       const now = Date.now();
 
       let record = this.hits.get(key);
@@ -63,15 +68,99 @@ class MemoryRateLimiter {
 }
 
 /**
- * Rate limiter for expensive AI generation endpoints
- * 60 requests per 15 minutes per IP/User
+ * Per-User Daily AI Quota Limiter
+ * Tracks daily generation count per user (or IP fallback).
+ * Users providing their own x-gemini-key bypass server-side quota.
  */
-export const aiRateLimiter = new MemoryRateLimiter({
+class DailyQuotaLimiter {
+  constructor(options = {}) {
+    this.dailyLimit = options.dailyLimit || ENV.DAILY_USER_AI_QUOTA || 50;
+    this.records = new Map();
+
+    // Reset / cleanup stale entries every hour
+    setInterval(() => this.cleanup(), 60 * 60 * 1000).unref();
+  }
+
+  getTodayKey() {
+    return new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+  }
+
+  cleanup() {
+    const today = this.getTodayKey();
+    for (const [compositeKey] of this.records.entries()) {
+      if (!compositeKey.endsWith(`_${today}`)) {
+        this.records.delete(compositeKey);
+      }
+    }
+  }
+
+  middleware() {
+    return (req, res, next) => {
+      const customKey =
+        req.headers["x-gemini-key"] ||
+        req.headers["x-api-key"] ||
+        req.body?.apiKey;
+
+      // Requests using user's own custom key bypass server quota limit
+      if (
+        customKey &&
+        typeof customKey === "string" &&
+        customKey.trim().length > 0 &&
+        customKey !== "DEMO_MODE"
+      ) {
+        return next();
+      }
+
+      const userId =
+        req.user && req.user.id
+          ? `user_${req.user.id}`
+          : `ip_${req.ip || req.connection?.remoteAddress || "unknown"}`;
+      const today = this.getTodayKey();
+      const trackingKey = `${userId}_${today}`;
+
+      const currentUsage = this.records.get(trackingKey) || 0;
+      if (currentUsage >= this.dailyLimit) {
+        return res.status(429).json({
+          success: false,
+          code: "DAILY_QUOTA_EXCEEDED",
+          message: `Daily AI generation quota reached (${this.dailyLimit} requests/day). Add your personal Gemini API key in Settings for unlimited access.`,
+          dailyLimit: this.dailyLimit,
+          usageToday: currentUsage,
+        });
+      }
+
+      this.records.set(trackingKey, currentUsage + 1);
+      res.setHeader("X-Daily-Quota-Limit", this.dailyLimit);
+      res.setHeader(
+        "X-Daily-Quota-Remaining",
+        Math.max(0, this.dailyLimit - (currentUsage + 1))
+      );
+
+      next();
+    };
+  }
+}
+
+export const dailyQuotaLimiter = new DailyQuotaLimiter().middleware();
+
+const memoryAiRateLimiter = new MemoryRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 60,
   message: "AI Generation rate limit reached. Please wait a few moments before requesting more AI content.",
   code: "AI_RATE_LIMIT_EXCEEDED",
 }).middleware();
+
+/**
+ * Composite AI Rate Limiter:
+ * Enforces per-user daily quota and sliding-window rate limit.
+ * Expects authentication middleware to run prior so req.user is populated.
+ */
+export const aiRateLimiter = (req, res, next) => {
+  dailyQuotaLimiter(req, res, (err) => {
+    if (err) return next(err);
+    memoryAiRateLimiter(req, res, next);
+  });
+};
 
 /**
  * Rate limiter for authentication endpoints (Login / Register)
