@@ -96,6 +96,19 @@ export const miniQuizBlockSchema = z.object({
   questions: z.array(quizQuestionSchema).min(1, "At least 1 quiz question required"),
 });
 
+export const qnaCardSchema = z.object({
+  question: z.string().min(5, "Question must be at least 5 characters"),
+  answer: z.string().min(5, "Answer must be at least 5 characters"),
+  hint: z.string().optional(),
+  concept: z.string().optional(),
+});
+
+export const qnaBlockSchema = z.object({
+  type: z.literal("qna"),
+  title: z.string().optional().default("Active Recall & Self-Check Cards"),
+  items: z.array(qnaCardSchema).min(1, "At least 1 Q&A card is required"),
+});
+
 /**
  * Union of all allowed block types in Quick Learn
  */
@@ -118,6 +131,7 @@ export const topicBlockSchema = z.discriminatedUnion("type", [
   quickSummaryBlockSchema,
   takeawaysBlockSchema,
   miniQuizBlockSchema,
+  qnaBlockSchema,
 ]);
 
 /**

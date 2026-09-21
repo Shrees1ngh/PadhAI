@@ -150,8 +150,8 @@ export const AuthModal = () => {
 
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-600/30 mx-auto mb-3">
-            <Sparkles className="w-6 h-6 animate-pulse" />
+          <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/15 bg-white/5 flex items-center justify-center shadow-lg shadow-cyan-500/15 mx-auto mb-3 p-1.5">
+            <img src="/logo.svg" alt="PadhAI Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-2xl font-black text-white tracking-tight">
             {authModalView === 'signup'

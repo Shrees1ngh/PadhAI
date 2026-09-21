@@ -60,10 +60,14 @@ export const Navbar = ({
 
           <div 
             onClick={() => onSwitchView && onSwitchView('home')}
-            className="flex md:hidden items-center space-x-2 cursor-pointer shrink-0"
+            className="flex md:hidden items-center space-x-2.5 cursor-pointer shrink-0"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-md">
-              <GraduationCap className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-cyan-500/15 shrink-0 border border-white/10 bg-white/5 flex items-center justify-center p-1">
+              <img 
+                src="/logo.svg" 
+                alt="PadhAI Logo" 
+                className="w-full h-full object-contain" 
+              />
             </div>
             <span className="text-base font-black text-white tracking-tight">
               Padh<span className="text-indigo-400">AI</span>

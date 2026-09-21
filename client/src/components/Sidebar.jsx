@@ -55,8 +55,12 @@ export const Sidebar = ({
           onClick={() => handleItemClick('home')}
           className="flex items-center space-x-3 cursor-pointer hover:opacity-90 transition-opacity"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
-            <GraduationCap className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shadow-cyan-500/15 shrink-0 border border-white/10 bg-white/5 flex items-center justify-center p-1">
+            <img 
+              src="/logo.svg" 
+              alt="PadhAI Logo" 
+              className="w-full h-full object-contain" 
+            />
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="text-lg font-black tracking-tight text-white">

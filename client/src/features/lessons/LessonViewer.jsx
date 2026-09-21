@@ -27,7 +27,7 @@ import MarkdownRenderer from '../../components/MarkdownRenderer';
 import { generateLessonContent, chatWithAITutor, completeTopicProgress, fetchCourseProgress } from '../../services/api';
 import QuizRunner from '../quizzes/QuizRunner';
 import CheatsheetViewer from '../cheatsheets/CheatsheetViewer';
-import FlashcardDeck from '../flashcards/FlashcardDeck';
+import ActiveRecallSection from './ActiveRecallSection';
 import VisualizerHost from '../visualizations/VisualizerHost';
 import RecommendedVideos from '../youtube/RecommendedVideos';
 
@@ -40,7 +40,7 @@ export const LessonViewer = ({
 }) => {
   const [activeModIdx, setActiveModIdx] = useState(initialModuleIndex);
   const [activeLessIdx, setActiveLessIdx] = useState(initialLessonIndex);
-  const [activeTab, setActiveTab] = useState('lesson'); // 'lesson' | 'examples' | 'practice' | 'resources' | 'quiz' | 'cheatsheet' | 'flashcards'
+  const [activeTab, setActiveTab] = useState('lesson'); // 'lesson' | 'quiz' | 'cheatsheet'
 
   // Lesson cache
   const [lessonCache, setLessonCache] = useState({});
@@ -320,16 +320,6 @@ export const LessonViewer = ({
             Cheatsheet
           </button>
           <button
-            onClick={() => setActiveTab('flashcards')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all min-h-[36px] ${
-              activeTab === 'flashcards'
-                ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
-                : 'bg-white/5 text-slate-400 hover:text-white'
-            }`}
-          >
-            Flashcards
-          </button>
-          <button
             onClick={() => window.print()}
             className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all min-h-[36px] min-w-[36px] flex items-center justify-center"
             title="Export as PDF"
@@ -365,26 +355,6 @@ export const LessonViewer = ({
       {activeTab === 'cheatsheet' && (
         <div className="mt-4">
           <CheatsheetViewer
-            courseId={course._id || course.id || ''}
-            moduleIndex={activeModIdx}
-            lessonIndex={activeLessIdx}
-            lessonTitle={currentLesson?.title || ''}
-            lessonContent={
-              lessonData
-                ? `${lessonData.introduction || ''}\n\n${lessonData.explanation || ''}\n\n${(lessonData.keyConcepts || []).join('\n')}`
-                : (currentLesson?.learningObjective || currentLesson?.title || '')
-            }
-            courseTopic={course.topic}
-            currentLevel={course.level || course.setupParams?.currentLevel || 'Beginner'}
-            onBack={() => setActiveTab('lesson')}
-          />
-        </div>
-      )}
-
-      {/* VIEW: FLASHCARDS */}
-      {activeTab === 'flashcards' && (
-        <div className="mt-4">
-          <FlashcardDeck
             courseId={course._id || course.id || ''}
             moduleIndex={activeModIdx}
             lessonIndex={activeLessIdx}
@@ -556,6 +526,12 @@ export const LessonViewer = ({
                       />
                     </div>
                   </div>
+
+                  {/* Interactive In-Lesson Active Recall / Self-Check Q&A Cards */}
+                  <ActiveRecallSection
+                    lesson={lessonData}
+                    lessonTitle={currentLesson?.title || course.topic}
+                  />
 
                   {/* Recommended YouTube Videos for Lesson */}
                   <div className="pt-4 border-t border-white/5">

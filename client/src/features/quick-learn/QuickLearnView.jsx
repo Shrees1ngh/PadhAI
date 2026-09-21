@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -28,7 +28,6 @@ import BlockRenderer from '../cheatsheets/BlockRenderer';
 import VisualizerHost, { detectVisualizationType } from '../visualizations/VisualizerHost';
 import RecommendedVideos from '../youtube/RecommendedVideos';
 import CheatsheetViewer from '../cheatsheets/CheatsheetViewer';
-import FlashcardDeck from '../flashcards/FlashcardDeck';
 import QuizRunner from '../quizzes/QuizRunner';
 import AITutorDrawer from '../ai-tutor/AITutorDrawer';
 import {
@@ -171,6 +170,47 @@ export const QuickLearnView = ({
       fetchQuickLearnData(activeTopic, level, language, false);
     }
   }, [activeTopic, level, language]);
+
+  // Ensure contentBlocks has active recall Q&A self-check cards (even for previously saved/demo topics)
+  const contentBlocks = useMemo(() => {
+    if (!topicData?.blocks || !Array.isArray(topicData.blocks)) return [];
+    const blocks = [...topicData.blocks];
+    if (!blocks.some((b) => b && b.type === 'qna')) {
+      const defBlock = blocks.find((b) => b && b.type === 'definition');
+      const mistBlock = blocks.find((b) => b && b.type === 'common_mistakes');
+      const takeBlock = blocks.find((b) => b && b.type === 'takeaways');
+
+      blocks.push({
+        type: 'qna',
+        title: `Active Recall & Self-Check Cards`,
+        items: [
+          {
+            question: `How would you explain the core mechanism and primary definition of ${topicData.title || activeTopic} in your own words?`,
+            hint: `Focus on what it accomplishes and its essential properties.`,
+            answer: defBlock && typeof defBlock.text === 'string'
+              ? defBlock.text.replace(/\*\*/g, '')
+              : `Foundational concepts and principles of ${topicData.title || activeTopic}.`,
+            concept: 'Core Mechanism',
+          },
+          {
+            question: `What is a common trap, misconception, or mistake when working with ${topicData.title || activeTopic}?`,
+            hint: `Consider edge cases and typical misunderstandings.`,
+            answer: mistBlock?.items?.[0]
+              ? `${mistBlock.items[0].mistake} (Resolution: ${mistBlock.items[0].fix})`
+              : `Failing to check preconditions and system invariants.`,
+            concept: 'Common Pitfalls',
+          },
+          {
+            question: `What is the most critical practical takeaway for ${topicData.title || activeTopic}?`,
+            hint: `Focus on real-world engineering or practical application.`,
+            answer: takeBlock?.items?.[0] || `Always test assumptions and verify core behavior under realistic constraints.`,
+            concept: 'Key Takeaway',
+          },
+        ],
+      });
+    }
+    return blocks;
+  }, [topicData, activeTopic]);
 
   const handleSearchSubmit = (e) => {
     e?.preventDefault();
@@ -594,10 +634,10 @@ export const QuickLearnView = ({
       {!loading && topicData && (
         <div className="space-y-8 print:space-y-4">
           {/* Quick Nav Tools Bar (Hidden on Print) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 print:hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:hidden">
             <button
               onClick={() => setActiveModal('cheatsheet')}
-              className="p-4 rounded-2xl bg-[#0d1322] hover:bg-[#121a30] border border-white/10 hover:border-indigo-500/40 transition-all text-left group flex items-center space-x-3"
+              className="p-4 rounded-2xl bg-[#0d1322] hover:bg-[#121a30] border border-white/10 hover:border-indigo-500/40 transition-all text-left group flex items-center space-x-3 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <FileText className="w-4 h-4" />
@@ -609,21 +649,8 @@ export const QuickLearnView = ({
             </button>
 
             <button
-              onClick={() => setActiveModal('flashcards')}
-              className="p-4 rounded-2xl bg-[#0d1322] hover:bg-[#121a30] border border-white/10 hover:border-purple-500/40 transition-all text-left group flex items-center space-x-3"
-            >
-              <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Layers className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white">Flashcards</p>
-                <p className="text-[10px] text-slate-400">Active Recall</p>
-              </div>
-            </button>
-
-            <button
               onClick={() => setActiveModal('quiz')}
-              className="p-4 rounded-2xl bg-[#0d1322] hover:bg-[#121a30] border border-white/10 hover:border-cyan-500/40 transition-all text-left group flex items-center space-x-3"
+              className="p-4 rounded-2xl bg-[#0d1322] hover:bg-[#121a30] border border-white/10 hover:border-cyan-500/40 transition-all text-left group flex items-center space-x-3 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <HelpCircle className="w-4 h-4" />
@@ -639,7 +666,7 @@ export const QuickLearnView = ({
                 setTutorOpen(true);
                 if (onOpenTutor) onOpenTutor();
               }}
-              className="p-4 rounded-2xl bg-gradient-to-tr from-indigo-900/40 via-purple-900/30 to-[#0d1322] border border-indigo-500/30 hover:border-indigo-500/60 transition-all text-left group flex items-center space-x-3"
+              className="p-4 rounded-2xl bg-gradient-to-tr from-indigo-900/40 via-purple-900/30 to-[#0d1322] border border-indigo-500/30 hover:border-indigo-500/60 transition-all text-left group flex items-center space-x-3 cursor-pointer"
             >
               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
                 <Bot className="w-4 h-4" />
@@ -666,9 +693,9 @@ export const QuickLearnView = ({
           )}
 
           {/* Block-Based Content Grid (Using Universal BlockRenderer) */}
-          {Array.isArray(topicData.blocks) && topicData.blocks.length > 0 ? (
+          {Array.isArray(contentBlocks) && contentBlocks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 print:grid-cols-1 print:gap-3">
-              {topicData.blocks.map((block, idx) => (
+              {contentBlocks.map((block, idx) => (
                 <BlockRenderer key={idx} block={block} isPaper={false} />
               ))}
             </div>
@@ -703,30 +730,6 @@ export const QuickLearnView = ({
               <X className="w-4 h-4" />
             </button>
             <CheatsheetViewer
-              lessonTitle={topicData?.title || activeTopic}
-              courseTopic={topicData?.topic || activeTopic}
-              lessonContent={
-                topicData?.blocks?.find((b) => b.type === 'definition')?.text || activeTopic
-              }
-              currentLevel={level}
-              sourceType="lesson"
-              onBack={() => setActiveModal(null)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Flashcards Deck */}
-      {activeModal === 'flashcards' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-2xl bg-[#0b0f19] border border-white/15 rounded-3xl p-6 relative">
-            <button
-              onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <FlashcardDeck
               lessonTitle={topicData?.title || activeTopic}
               courseTopic={topicData?.topic || activeTopic}
               lessonContent={

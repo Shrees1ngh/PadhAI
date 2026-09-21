@@ -84,6 +84,17 @@ export const Hero = ({
       {/* Main Learning Search Hub Section */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 sm:space-y-8 relative z-10">
         
+        {/* Brand Badge */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs text-slate-300 shadow-sm"
+        >
+          <img src="/logo.svg" alt="PadhAI" className="w-5 h-5 object-contain" />
+          <span className="font-semibold">PadhAI Learning Platform</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+        </motion.div>
+
         {/* Hero Title */}
         <div className="space-y-3">
           <motion.h1

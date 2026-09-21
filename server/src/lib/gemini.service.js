@@ -74,14 +74,28 @@ export const callGemini = async ({
   }
 
   const ai = new GoogleGenAI({ apiKey: activeKey });
-  const configuredModel = model || ENV.GEMINI_MODEL || "gemini-2.5-flash";
+  let configuredModel = model || ENV.GEMINI_MODEL || "gemini-3.6-flash";
 
-  // Active models supported by @google/genai SDK
+  // Remap deprecated legacy 2.5 / 2.0 / 1.5 models to active working models
+  if (configuredModel.includes("2.5-flash-lite")) {
+    configuredModel = "gemini-3.5-flash-lite";
+  } else if (
+    configuredModel.includes("2.5-flash") ||
+    configuredModel.includes("2.0-flash") ||
+    configuredModel.includes("1.5-flash")
+  ) {
+    configuredModel = "gemini-3.6-flash";
+  } else if (configuredModel.includes("2.5-pro")) {
+    configuredModel = "gemini-3.1-pro-preview";
+  }
+
+  // Active models supported by @google/genai SDK (ordered by reliability & free quota)
   const candidateModels = [
     configuredModel,
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-pro",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
   ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i);
 
   const config = {
@@ -126,7 +140,7 @@ export const callGemini = async ({
       } catch (error) {
         lastError = error;
 
-        // Check for 429 (Quota / Rate Limit) - NEVER RETRY
+        // Check for 429 (Quota / Rate Limit) - try fallback models before giving up
         const is429 =
           error.status === 429 ||
           error.message?.includes("429") ||
@@ -135,12 +149,33 @@ export const callGemini = async ({
           error.code === "QUOTA_EXCEEDED";
 
         if (is429) {
+          if (mIdx < candidateModels.length - 1) {
+            console.warn(
+              `Model "${currentModel}" hit rate limit/quota, trying next fallback model "${candidateModels[mIdx + 1]}"...`
+            );
+            break; // Break inner loop, outer loop moves to next candidate model!
+          }
           const rateLimitErr = new Error(
             "Gemini API rate limit or daily quota reached. Please add your personal Gemini API key in Settings to continue."
           );
           rateLimitErr.status = 429;
           rateLimitErr.code = "QUOTA_EXCEEDED";
           throw rateLimitErr;
+        }
+
+        // Check for 404 (Model Not Found / Deprecated) - fallback to next candidate model
+        const is404 =
+          error.status === 404 ||
+          error.message?.includes("404") ||
+          error.message?.includes("NOT_FOUND") ||
+          error.message?.includes("no longer available") ||
+          error.message?.includes("not found");
+
+        if (is404) {
+          console.warn(
+            `Model "${currentModel}" not available (404), falling back to next candidate model...`
+          );
+          break; // Break inner loop, outer loop moves to next candidate model!
         }
 
         // Check for 401 (Invalid API Key) - NEVER RETRY

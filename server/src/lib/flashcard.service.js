@@ -149,13 +149,19 @@ JSON SCHEMA:
 
 SOURCE MATERIAL CONTENT:
 """
-${(contentText || lessonTitle).slice(0, 75000)}
+${(contentText || lessonTitle).slice(0, 15000)}
 """`;
 
-  return await callGemini({
-    prompt,
-    responseSchema: generatedFlashcardsSchema,
-    temperature: 0.35,
-    apiKey: activeKey,
-  });
+  try {
+    return await callGemini({
+      prompt,
+      model: "gemini-3.5-flash-lite",
+      responseSchema: generatedFlashcardsSchema,
+      temperature: 0.35,
+      apiKey: activeKey,
+    });
+  } catch (error) {
+    console.warn("Live Gemini flashcard generation error, falling back to graceful deck:", error.message);
+    return generateDemoFlashcards({ lessonTitle });
+  }
 };

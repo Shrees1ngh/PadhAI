@@ -26,6 +26,13 @@ export const generateLessonInputSchema = z.object({
   apiKey: z.string().optional(),
 });
 
+export const selfCheckQuestionSchema = z.object({
+  question: z.string().min(5, "Question must be at least 5 characters"),
+  answer: z.string().min(5, "Answer must be at least 5 characters"),
+  hint: z.string().optional(),
+  concept: z.string().optional(),
+});
+
 export const lessonContentSchema = z.object({
   title: z.string().min(1, "Title is required"),
   learningObjective: z.string().min(1, "Learning objective is required"),
@@ -37,6 +44,7 @@ export const lessonContentSchema = z.object({
   commonMistakes: z.array(z.string()).min(1, "At least one common mistake or misconception is required"),
   summary: z.string().min(10, "Summary is required"),
   importantTakeaways: z.array(z.string()).min(1, "At least one important takeaway is required"),
+  selfCheckQuestions: z.array(selfCheckQuestionSchema).optional().default([]),
   estimatedReadingTime: z.string().min(2, "Estimated reading time is required"),
 });
 

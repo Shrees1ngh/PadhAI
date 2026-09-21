@@ -98,7 +98,8 @@ STRICT PEDAGOGICAL INSTRUCTIONS:
    - Use Markdown bold (**text**), italics (*text*), blockquotes (> note), lists (- item), code blocks with language identifiers (\`\`\`python, \`\`\`javascript, etc.), tables, and inline math ($...$) if relevant.
 4. EXAMPLES: Provide realistic, practical code or analytical examples illustrating the concepts.
 5. MISCONCEPTIONS: Point out 2-3 common traps or misconceptions students often fall into.
-6. OUTPUT: Return strictly valid JSON conforming to the schema below. No markdown fences around the JSON, no prologue or epilogue text.
+6. ACTIVE RECALL & SELF-CHECK QUESTIONS: Include 3 to 5 targeted active recall questions that challenge the learner to test their understanding before revealing the answer. Each question must have a targeted question, subtle hint, and definitive model answer.
+7. OUTPUT: Return strictly valid JSON conforming to the schema below. No markdown fences around the JSON, no prologue or epilogue text.
 
 EXACT JSON SCHEMA TO SATISFY:
 {
@@ -119,6 +120,13 @@ EXACT JSON SCHEMA TO SATISFY:
   "summary": "string (cohesive Markdown recap synthesizing the lesson)",
   "importantTakeaways": [
     "string (actionable core takeaway bullet)"
+  ],
+  "selfCheckQuestions": [
+    {
+      "question": "string (Thought-provoking active recall question testing a core concept from this lesson)",
+      "hint": "string (Subtle hint guiding the learner's thinking without giving away the full answer)",
+      "answer": "string (Definitive, concise 1-3 sentence explanation of the correct answer)"
+    }
   ],
   "estimatedReadingTime": "string (e.g., '7 mins' or '10 mins')"
 }`;
@@ -187,6 +195,23 @@ const generateDemoLessonContent = ({
       `Always design operations to be idempotent whenever distributed networks or retries are involved.`,
       `Decouple critical execution paths from non-blocking auxiliary tasks.`,
       `Benchmark real workloads rather than relying on synthetic micro-benchmarks.`,
+    ],
+    selfCheckQuestions: [
+      {
+        question: `Why is idempotency critical when designing network-facing operations for ${lessonTitle}?`,
+        hint: `Think about what happens if an API client times out and retries the exact same request.`,
+        answer: `Because network retries can cause duplicate executions. Idempotency guarantees that repeating the identical operation yields the exact same state without double processing or data corruption.`,
+      },
+      {
+        question: `What is the key trade-off between synchronous blocking and asynchronous event-driven execution in ${lessonTitle}?`,
+        hint: `Consider thread utilization and response latency under high traffic.`,
+        answer: `Synchronous execution is simpler to reason about but blocks system threads, limiting throughput. Asynchronous execution decouples tasks for high concurrency, but requires careful error handling and telemetry.`,
+      },
+      {
+        question: `How does graceful degradation protect the user experience when a subsystem fails?`,
+        hint: `Think of essential features vs non-critical extras (e.g. streaming video vs personalized recommendations).`,
+        answer: `It allows core functionality to remain active while selectively disabling non-essential features, preventing a total system outage.`,
+      },
     ],
     estimatedReadingTime: `8 mins`,
   };

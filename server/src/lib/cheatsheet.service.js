@@ -6,6 +6,44 @@ import {
 } from "../modules/cheatsheets/cheatsheet.validator.js";
 
 /**
+ * Sanitize and normalize Mermaid flowchart syntax.
+ * Converts accidental decision diamonds {Entity} into rectangular [Entity],
+ * preserves legitimate condition diamonds ({Condition?}), and strips markdown fences.
+ */
+export const sanitizeMermaidCode = (code) => {
+  if (!code || typeof code !== "string") return "";
+  let cleaned = code.trim();
+
+  // Strip markdown code fences if present
+  cleaned = cleaned.replace(/^```(?:mermaid)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+  // Ensure valid diagram prefix
+  if (!/^(flowchart|graph|stateDiagram|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie|gitGraph)\b/i.test(cleaned)) {
+    cleaned = `flowchart TD\n${cleaned}`;
+  }
+
+  // Convert accidental diamond braces {Entity} into rectangular [Entity]
+  // In Mermaid, NodeId{Text} is a rhombus / decision diamond.
+  // If Text does NOT end with '?' and has no comparison/condition words,
+  // it's an entity or step mistakenly rendered as a decision diamond.
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\{([^}]+)\}/g, (match, nodeId, text) => {
+    const trimmed = text.trim();
+    const isCondition =
+      trimmed.endsWith("?") ||
+      /[=<>!]/.test(trimmed) ||
+      /^(is|if|has|can|should|check|does|valid|test)\b/i.test(trimmed);
+
+    if (isCondition) {
+      return match;
+    }
+    const safeText = trimmed.replace(/"/g, "'");
+    return `${nodeId}["${safeText}"]`;
+  });
+
+  return cleaned;
+};
+
+/**
  * Generate rich domain-adaptive mock cheatsheet for DEMO_MODE in non-production environments.
  */
 const generateDemoBlocksCheatsheet = ({
@@ -675,6 +713,11 @@ export const generateCheatsheetWithGemini = async ({
   const domain = classification.domain;
   const isCS = domain === "programming" || domain === "computer_science";
   const isHinglish = language === "hinglish";
+  const isAlgoOrDSA =
+    isCS &&
+    /\b(algorithm|algorithms|sort|sorting|search|searching|tree|trees|bst|avl|graph|graphs|dp|dynamic programming|recursion|heap|heaps|hash|hashing|stack|stacks|queue|queues|linked list|binary search|dijkstra|bfs|dfs|backtracking|greedy|complexity|big o|asymptotic|trie)\b/i.test(
+      `${activeTopic} ${classification.subdomain || ""}`
+    );
 
   let contentText = "";
   if (typeof lessonContent === "string") {
@@ -699,17 +742,32 @@ DOMAIN: ECONOMICS / FINANCE
 - STRICT PROHIBITION: DO NOT output any 'code' or 'syntax' blocks. Economics is an analytical/social science domain.
 `;
   } else if (isCS) {
-    domainSpecificRules = `
-DOMAIN: COMPUTER SCIENCE / PROGRAMMING
+    if (isAlgoOrDSA) {
+      domainSpecificRules = `
+DOMAIN: COMPUTER SCIENCE (ALGORITHMS & DATA STRUCTURES)
 - MUST include:
-  1. 'definition' of the algorithm, structure, or paradigm.
-  2. 'code' or 'syntax' block containing clean, commented, production-grade snippet in standard language (e.g. javascript, python, cpp).
-  3. 'table' covering time complexity ($\mathcal{O}(...)$) and space complexity cases (Best, Average, Worst).
-  4. 'diagram' with valid, renderable Mermaid syntax (flowchart TD or stateDiagram-v2).
-  5. 'real_life' analogy explaining why and where this is utilized in real software systems.
-  6. 'common_mistakes' covering edge cases, off-by-one errors, or integer overflow.
+  1. 'definition' of the algorithm or data structure.
+  2. 'code' or 'syntax' block containing clean, commented, production-grade snippet (e.g. javascript, python, cpp).
+  3. 'table' covering time complexity ($O(1)$, $O(\log n)$, $O(n)$, $O(n \log n)$, $O(n^2)$) and space complexity across Best, Average, Worst cases.
+  4. 'diagram' with valid, renderable Mermaid flowchart showing algorithmic logic or structure.
+  5. 'real_life' practical software engineering use case.
+  6. 'common_mistakes' covering edge cases, off-by-one errors, or empty inputs.
   7. 'quick_summary' actionable takeaways.
 `;
+    } else {
+      domainSpecificRules = `
+DOMAIN: COMPUTER SCIENCE & SOFTWARE ENGINEERING (TOOLS / FRAMEWORKS / DEVOPS / SYSTEMS)
+- MUST include:
+  1. 'definition' of the tool, framework, architecture, or paradigm.
+  2. 'code' or 'syntax' block containing realistic CLI commands, configuration (e.g. Dockerfile, yaml, bash), or code snippet with explanatory notes.
+  3. 'table' comparing core commands, lifecycle states, options, architecture components, or practical tradeoffs (e.g. Command | Syntax / Flags | Purpose | Practical Behavior & Notes).
+  4. 'diagram' with valid, renderable Mermaid flowchart showing architecture, workflow, or container lifecycle.
+  5. 'real_life' production deployment or real-world system analogy.
+  6. 'common_mistakes' practical gotchas, configuration traps, permission issues, or resource leaks.
+  7. 'quick_summary' actionable takeaways.
+- STRICT PROHIBITION: DO NOT invent fake mathematical formulas, Big-O notations, or calculus (e.g. NEVER generate time/space complexity O(L*D) or O(P) for Docker/Git/Linux/React/DevOps). Use practical command reference or comparison tables instead!
+`;
+    }
   } else if (domain === "mathematics" || domain === "physics" || domain === "chemistry") {
     domainSpecificRules = `
 DOMAIN: EXACT SCIENCES (MATH / PHYSICS / CHEMISTRY)
@@ -776,7 +834,12 @@ The cheatsheet must contain an array of between 8 and 14 cohesive, domain-adapte
 - key_points: { type: "key_points", items: string[] }
 - formula: { type: "formula", name: string, latex: string (clean valid KaTeX without enclosing $$), explanation: string, variables: [{ symbol: string, meaning: string }] }
 - chart: { type: "chart", chartType: "line"|"bar"|"area"|"scatter", title: string, xLabel: string, yLabel: string, series: [{ name: string, points: [{ x: number, y: number }] (at least 5 finite numeric coordinates) }], insight: string, markers?: [{ x: number, y: number, label: string }] }
-- diagram: { type: "diagram", mermaid: string (valid mermaid diagram code without backticks), caption: string }
+- diagram: { type: "diagram", mermaid: string (valid flowchart TD syntax without backticks), caption: string }
+  * Standard Steps / Processes / Artifacts: use square brackets [Name], e.g. [Dockerfile], [Docker Build], [Docker Image], [Docker Container].
+  * Storage / Database / Registry: use cylinder [(Docker Registry)] or [(Database)].
+  * Start / Finish terminals: use rounded ([Start]) or ([Finish]).
+  * CRITICAL: Diamond braces {Condition?} are STRICTLY RESERVED for binary branching decisions (e.g. {Is Valid?} -->|Yes| A and -->|No| B). NEVER use diamond braces { } for entities, tools, stages, files, or objects.
+  * Edge labels: keep short and concise (e.g. A -->|Build| B).
 - table: { type: "table", title: string, headers: string[], rows: string[][] }
 - code: { type: "code", language: string, code: string, explanation: string } (ONLY if computer_science or programming)
 - syntax: { type: "syntax", language: string, snippet: string, notes: string } (ONLY if computer_science or programming)
@@ -827,6 +890,16 @@ EXACT JSON SCHEMA TO SATISFY:
       if (!result.domain) result.domain = domain;
       if (!result.level) result.level = currentLevel;
       if (!result.language) result.language = language;
+
+      // Sanitize diagram blocks to prevent malformed syntax or accidental decision diamonds
+      if (Array.isArray(result.blocks)) {
+        result.blocks = result.blocks.map((b) => {
+          if (b && b.type === "diagram" && typeof b.mermaid === "string") {
+            b.mermaid = sanitizeMermaidCode(b.mermaid);
+          }
+          return b;
+        });
+      }
 
       // Validate against strict Zod schema (with server-side KaTeX & domain rules)
       const validated = generatedCheatsheetSchema.parse(result);

@@ -1,5 +1,5 @@
 import { resolveApiKey, callGemini } from "./gemini.service.js";
-import { classifyTopicWithGemini } from "./cheatsheet.service.js";
+import { classifyTopicWithGemini, sanitizeMermaidCode } from "./cheatsheet.service.js";
 import {
   generatedTopicContentSchema,
   DOMAINS,
@@ -551,6 +551,40 @@ export const generateDemoQuickLearnContent = ({
     ];
   }
 
+  // Ensure active recall QnA block exists in demo topics
+  if (!blocks.some((b) => b.type === "qna")) {
+    const defBlock = blocks.find((b) => b.type === "definition");
+    const mistBlock = blocks.find((b) => b.type === "common_mistakes");
+    const takeBlock = blocks.find((b) => b.type === "takeaways");
+
+    blocks.push({
+      type: "qna",
+      title: `Active Recall & Self-Check: ${topic}`,
+      items: [
+        {
+          question: `How would you explain the core mechanism and primary definition of ${topic} in your own words?`,
+          hint: `Focus on the foundational purpose and key concept.`,
+          answer: defBlock ? defBlock.text.replace(/\*\*/g, "") : `The foundational concept and primary mechanism of ${topic}.`,
+          concept: "Core Concept",
+        },
+        {
+          question: `What is a common pitfall, misconception, or mistake to guard against when dealing with ${topic}?`,
+          hint: `Consider common assumptions and edge-case errors.`,
+          answer: mistBlock?.items?.[0]
+            ? `${mistBlock.items[0].mistake} (Correction: ${mistBlock.items[0].fix})`
+            : `Failing to check operational constraints and edge cases.`,
+          concept: "Pitfalls & Traps",
+        },
+        {
+          question: `What is the most critical actionable rule or takeaway regarding ${topic}?`,
+          hint: `Think about real-world invariant conditions.`,
+          answer: takeBlock?.items?.[0] || `Always test assumptions and verify core behavior in practical scenarios.`,
+          concept: "Key Takeaway",
+        },
+      ],
+    });
+  }
+
   // Extract miniQuiz questions for top-level backward compatibility
   const quizBlock = blocks.find((b) => b.type === "mini_quiz");
   const miniQuiz = quizBlock ? quizBlock.questions : [];
@@ -637,7 +671,7 @@ DOMAIN-SPECIFIC REQUIREMENTS FOR DOMAIN "${domain}":
   * Economics/Business/Finance: use shopping, budgeting, market equilibrium, banking, inflation, corporate cases. NO code blocks.
   * History/Law/Political Science: use historical milestones, societal causes, legal precedents. Include timeline block. NO code blocks.
   * Biology/Chemistry/Physics: use natural systems, body processes, chemical reactions, physical laws. Include formula (with LaTeX) and mermaid diagrams. NO code blocks unless computational biology.
-  * Programming/Computer Science: include code blocks (with syntax highlighting), time/space complexity tables, and mermaid diagrams.
+  * Programming/Computer Science: include code blocks (with syntax highlighting). If algorithmic/DSA topic (e.g. Binary Search, QuickSort), include time/space complexity table ($O(...)$). If tools, frameworks, DevOps, or system topics (e.g. Docker, Git, Linux, React), include a practical comparison or command reference table. STRICTLY PROHIBITED from inventing fake Big-O math formulas for non-algorithmic tools!
 ${!isCsDomain ? "- CRITICAL RULE: DO NOT generate any code or syntax blocks for this non-computer-science topic." : "- Include practical code snippet with line-by-line explanation."}
 `;
 
@@ -656,13 +690,14 @@ Return 7 to 12 blocks chosen from the following discriminated union types:
 - real_life: { type: "real_life", scenario: string, connection: string }
 - formula: { type: "formula", name: string, latex: string (raw LaTeX WITHOUT outer $$), explanation: string, variables: [{ symbol: string, meaning: string }] } (Use ONLY if topic has real formulas; must be valid KaTeX)
 - chart: { type: "chart", chartType: "line"|"bar"|"area"|"scatter", title: string, xLabel: string, yLabel: string, series: [{ name: string, points: [{ x: number, y: number }] (at least 5 points) }], insight: string, markers?: [{ x: number, y: number, label: string }] } (Include when topic naturally has numeric curves)
-- diagram: { type: "diagram", mermaid: string, caption: string } (Use valid mermaid graph TD or graph LR syntax)
+- diagram: { type: "diagram", mermaid: string, caption: string } (Use valid mermaid flowchart TD syntax. Use [Stage] or [Entity] for processes, [(Storage)] for DBs/registries, ([Start]) for terminals. ONLY use {Condition?} diamonds for branching questions/decisions, NEVER for stages, tools, or entities).
 - table: { type: "table", title: string, headers: string[], rows: string[][] }
 - code: { type: "code", language: string, code: string, explanation: string } (ONLY if CS/programming)
 - step_by_step: { type: "step_by_step", title: string, steps: [{ step: number, title: string, explanation: string }] }
 - common_mistakes: { type: "common_mistakes", items: [{ mistake: string, fix: string }] }
 - takeaways: { type: "takeaways", items: string[] }
 - mini_quiz: { type: "mini_quiz", questions: [{ question: string, options: string[] (exactly 4 options), correctOptionIndex: number (integer 0-3), explanation: string }] }
+- qna: { type: "qna", title: string, items: [{ question: string, answer: string, hint: string, concept: string }] } (Include 2 to 4 interactive flashcard-style Q&A self-check cards testing key concepts)
 
 OUTPUT SCHEMA:
 Return ONLY valid JSON matching this schema:
@@ -707,6 +742,51 @@ Return ONLY valid JSON matching this schema:
       validationError.status = 502;
       validationError.code = "AI_OUTPUT_INVALID";
       throw validationError;
+    }
+  }
+
+  // Auto-sanitize diagram blocks and ensure active recall QnA block is present
+  if (parsedOutput && Array.isArray(parsedOutput.blocks)) {
+    parsedOutput.blocks = parsedOutput.blocks.map((b) => {
+      if (b && b.type === "diagram" && typeof b.mermaid === "string") {
+        b.mermaid = sanitizeMermaidCode(b.mermaid);
+      }
+      return b;
+    });
+
+    if (!parsedOutput.blocks.some((b) => b && b.type === "qna")) {
+      const defBlock = parsedOutput.blocks.find((b) => b && b.type === "definition");
+      const mistBlock = parsedOutput.blocks.find((b) => b && b.type === "common_mistakes");
+      const takeBlock = parsedOutput.blocks.find((b) => b && b.type === "takeaways");
+
+      parsedOutput.blocks.push({
+        type: "qna",
+        title: `Active Recall & Self-Check: ${topic}`,
+        items: [
+          {
+            question: `How would you explain the core mechanism and primary definition of ${topic} in your own words?`,
+            hint: `Focus on the foundational purpose and key concept.`,
+            answer: defBlock && typeof defBlock.text === 'string'
+              ? defBlock.text.replace(/\*\*/g, "")
+              : `The foundational concept and primary mechanism of ${topic}.`,
+            concept: "Core Concept",
+          },
+          {
+            question: `What is a common pitfall, misconception, or mistake to guard against when dealing with ${topic}?`,
+            hint: `Consider common assumptions and edge-case errors.`,
+            answer: mistBlock?.items?.[0]
+              ? `${mistBlock.items[0].mistake} (Correction: ${mistBlock.items[0].fix})`
+              : `Failing to check operational constraints and edge cases.`,
+            concept: "Pitfalls & Traps",
+          },
+          {
+            question: `What is the most critical actionable rule or takeaway regarding ${topic}?`,
+            hint: `Think about real-world invariant conditions.`,
+            answer: takeBlock?.items?.[0] || `Always test assumptions and verify core behavior in practical scenarios.`,
+            concept: "Key Takeaway",
+          },
+        ],
+      });
     }
   }
 

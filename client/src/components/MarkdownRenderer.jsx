@@ -85,6 +85,26 @@ const CodeBlock = ({ className, children, theme = 'dark', ...props }) => {
   );
 };
 
+// Automatically wrap un-delimited LaTeX expressions in $...$ so KaTeX can render them
+export const autoWrapLatex = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  if (text.includes('```')) return text;
+
+  const dollarCount = (text.match(/\$/g) || []).length;
+  if (dollarCount >= 2 && dollarCount % 2 === 0) return text;
+
+  // If the entire string is a standalone LaTeX formula (e.g. starts with \mathcal, \frac, \sum)
+  if (/^\s*\\[a-zA-Z]+/.test(text) && !text.includes('$')) {
+    return `$${text.trim()}$`;
+  }
+
+  // Inline occurrences: e.g. \mathcal{O}(1) or \mathcal{O}(N) in a sentence
+  return text.replace(
+    /(?<!\$)\\(?:mathcal|mathbf|mathrm|text|frac|sqrt|sum|int|Delta|Omega|Theta)\{[^}]+\}(?:\([^)]*\))?(?:\s*\\text\{[^}]*\})?(?!\$)/g,
+    (match) => `$${match}$`
+  );
+};
+
 export const MarkdownRenderer = ({
   content,
   className = '',
@@ -93,6 +113,7 @@ export const MarkdownRenderer = ({
 }) => {
   if (!content) return null;
 
+  const normalizedContent = autoWrapLatex(String(content));
   const isPaper = theme === 'paper';
 
   const baseContainerClass = isPaper
@@ -230,7 +251,7 @@ export const MarkdownRenderer = ({
           ),
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

@@ -33,6 +33,11 @@ import {
   Sparkles,
   Copy,
   Check,
+  BrainCircuit,
+  Eye,
+  EyeOff,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 
@@ -391,13 +396,46 @@ export const ChartBlock = ({ block, isPaper }) => {
   );
 };
 
+// Sanitize Mermaid code to normalize syntax and fix accidental decision diamonds
+export const sanitizeMermaidCode = (code) => {
+  if (!code || typeof code !== 'string') return '';
+  let cleaned = code.trim();
+
+  // Strip markdown code fences if present
+  cleaned = cleaned.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+  // Ensure valid diagram prefix
+  if (!/^(flowchart|graph|stateDiagram|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie|gitGraph)\b/i.test(cleaned)) {
+    cleaned = `flowchart TD\n${cleaned}`;
+  }
+
+  // Convert accidental diamond braces {Entity} into rectangular [Entity]
+  // In Mermaid, NodeId{Text} is a rhombus / decision diamond.
+  // If Text does NOT end with '?' and has no comparison/condition words,
+  // it's an entity or step mistakenly rendered as a decision diamond.
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\{([^}]+)\}/g, (match, nodeId, text) => {
+    const trimmed = text.trim();
+    const isCondition =
+      trimmed.endsWith('?') ||
+      /[=<>!]/.test(trimmed) ||
+      /^(is|if|has|can|should|check|does|valid|test)\b/i.test(trimmed);
+
+    if (isCondition) {
+      return match;
+    }
+    const safeText = trimmed.replace(/"/g, "'");
+    return `${nodeId}["${safeText}"]`;
+  });
+
+  return cleaned;
+};
+
 // =========================================================================
 // 5. DIAGRAM BLOCK (MERMAID)
 // =========================================================================
 export const DiagramBlock = ({ block, isPaper }) => {
   const containerRef = useRef(null);
   const [renderError, setRenderError] = useState(false);
-  const diagramId = useRef(`mermaid-${Math.random().toString(36).substring(2, 9)}`);
 
   useEffect(() => {
     let isMounted = true;
@@ -405,7 +443,49 @@ export const DiagramBlock = ({ block, isPaper }) => {
       if (!block.mermaid || !containerRef.current) return;
       try {
         setRenderError(false);
-        const { svg } = await mermaid.render(diagramId.current, block.mermaid);
+        const cleanedMermaid = sanitizeMermaidCode(block.mermaid);
+
+        // Configure Mermaid dynamically per theme
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'loose',
+          theme: isPaper ? 'default' : 'dark',
+          themeVariables: isPaper
+            ? {
+                darkMode: false,
+                background: '#ffffff',
+                mainBkg: '#ffffff',
+                nodeBorder: '#6366f1',
+                nodeTextColor: '#0f172a',
+                lineColor: '#64748b',
+                edgeLabelBackground: '#f8fafc',
+                textColor: '#0f172a',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: '13px',
+              }
+            : {
+                darkMode: true,
+                background: '#020617',
+                mainBkg: '#0f172a',
+                nodeBorder: '#818cf8',
+                nodeTextColor: '#f8fafc',
+                lineColor: '#818cf8',
+                edgeLabelBackground: '#090d16',
+                textColor: '#f8fafc',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: '13px',
+              },
+          flowchart: {
+            htmlLabels: true,
+            curve: 'basis',
+            nodeSpacing: 45,
+            rankSpacing: 45,
+            padding: 16,
+          },
+        });
+
+        const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const { svg } = await mermaid.render(uniqueId, cleanedMermaid);
         if (isMounted && containerRef.current) {
           containerRef.current.innerHTML = svg;
         }
@@ -455,7 +535,10 @@ export const DiagramBlock = ({ block, isPaper }) => {
             </pre>
           </div>
         ) : (
-          <div ref={containerRef} className="w-full flex justify-center mermaid-container" />
+          <div
+            ref={containerRef}
+            className={`w-full flex justify-center mermaid-container ${isPaper ? 'mermaid-paper' : 'mermaid-dark'}`}
+          />
         )}
       </div>
 
@@ -1089,6 +1172,214 @@ export const MiniQuizBlock = ({ block, isPaper }) => {
 };
 
 // =========================================================================
+// 19. QNA ACTIVE RECALL BLOCK
+// =========================================================================
+export const QnABlock = ({ block, isPaper }) => {
+  const items = Array.isArray(block.items) ? block.items : [];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [revealedAnswers, setRevealedAnswers] = useState({});
+  const [revealedHints, setRevealedHints] = useState({});
+
+  if (items.length === 0) return null;
+
+  const currentCard = items[activeIndex] || items[0];
+  const isAnswerRevealed = Boolean(revealedAnswers[activeIndex]);
+  const isHintRevealed = Boolean(revealedHints[activeIndex]);
+
+  const toggleAnswer = (idx) => {
+    setRevealedAnswers((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const toggleHint = (idx) => {
+    setRevealedHints((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  // On Paper mode / Print, show all questions with answers revealed cleanly
+  if (isPaper) {
+    return (
+      <div className="p-5 rounded-2xl border border-indigo-200 bg-indigo-50/40 text-slate-900 shadow-sm space-y-4">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+            <BrainCircuit className="w-4 h-4" />
+          </div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-900">
+            {block.title || 'Active Recall & Self-Check Cards'}
+          </h3>
+        </div>
+        <div className="space-y-4">
+          {items.map((item, idx) => (
+            <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between text-xs font-bold text-indigo-700 mb-2">
+                <span>Card {idx + 1}: {item.concept || 'Concept Check'}</span>
+              </div>
+              <p className="font-semibold text-slate-900 mb-2 text-sm">{item.question}</p>
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900">
+                <span className="font-bold">Answer: </span>
+                <MarkdownRenderer content={item.answer} theme="paper" compact={true} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 sm:p-7 rounded-2xl border border-indigo-500/25 bg-gradient-to-b from-indigo-950/25 to-slate-900/60 shadow-lg relative overflow-hidden transition-all">
+      {/* Glow accent */}
+      <div className="absolute -top-20 -right-20 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+
+      {/* Header with Title and Card Counter */}
+      <div className="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-white/10">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <BrainCircuit className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-300">
+              {block.title || 'Active Recall & Self-Check'}
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Formulate your own thought before revealing the answer
+            </p>
+          </div>
+        </div>
+
+        {items.length > 1 && (
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-semibold text-slate-400">
+              {activeIndex + 1} / {items.length}
+            </span>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setActiveIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition-colors cursor-pointer"
+                title="Previous Question"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setActiveIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition-colors cursor-pointer"
+                title="Next Question"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Card Content Area */}
+      <div className="bg-slate-900/80 rounded-xl border border-white/10 p-5 shadow-inner">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+            <Sparkles className="w-3 h-3 text-indigo-400" />
+            <span>{currentCard.concept || 'Self-Test'}</span>
+          </span>
+          <span className="text-[10px] font-mono text-slate-400">Card #{activeIndex + 1}</span>
+        </div>
+
+        <h4 className="text-base font-bold text-slate-100 mb-4 leading-snug">
+          {currentCard.question}
+        </h4>
+
+        {/* Optional Hint */}
+        {currentCard.hint && (
+          <div className="mb-4">
+            {!isHintRevealed ? (
+              <button
+                onClick={() => toggleHint(activeIndex)}
+                className="inline-flex items-center space-x-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+                <span>Need a hint? (Click to reveal)</span>
+              </button>
+            ) : (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs flex items-start space-x-2">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold text-amber-300 mr-1">Hint:</span>
+                  <span>{currentCard.hint}</span>
+                </div>
+                <button
+                  onClick={() => toggleHint(activeIndex)}
+                  className="text-amber-400/60 hover:text-amber-300 text-xs ml-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action Toggle */}
+        <div className="pt-2 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => toggleAnswer(activeIndex)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+              isAnswerRevealed
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/10'
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
+            }`}
+          >
+            {isAnswerRevealed ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Hide Answer</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Reveal Answer</span>
+              </>
+            )}
+          </button>
+
+          {isAnswerRevealed && items.length > 1 && (
+            <button
+              onClick={() => setActiveIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors flex items-center space-x-1 cursor-pointer"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Revealed Answer Box */}
+        {isAnswerRevealed && (
+          <div className="mt-4 p-4 rounded-xl bg-emerald-950/25 border border-emerald-500/30 text-emerald-100 text-xs sm:text-sm">
+            <div className="flex items-center space-x-1.5 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Verified Explanation:</span>
+            </div>
+            <div className="text-slate-200 text-xs sm:text-sm leading-relaxed">
+              <MarkdownRenderer content={currentCard.answer} compact={true} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dots Indicator */}
+      {items.length > 1 && (
+        <div className="flex items-center justify-center space-x-1.5 mt-4">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIndex(i)}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                activeIndex === i ? 'w-5 bg-indigo-500' : 'w-1.5 bg-slate-700 hover:bg-slate-600'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// =========================================================================
 // BLOCK REGISTRY MAP
 // =========================================================================
 const BLOCK_REGISTRY = {
@@ -1110,6 +1401,7 @@ const BLOCK_REGISTRY = {
   quick_summary: QuickSummaryBlock,
   takeaways: TakeawaysBlock,
   mini_quiz: MiniQuizBlock,
+  qna: QnABlock,
 };
 
 /**
@@ -1123,7 +1415,8 @@ export const isFullWidthBlock = (type) => {
     type === 'code' ||
     type === 'timeline' ||
     type === 'step_by_step' ||
-    type === 'mini_quiz'
+    type === 'mini_quiz' ||
+    type === 'qna'
   );
 };
 
