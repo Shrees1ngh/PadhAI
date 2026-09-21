@@ -64,16 +64,16 @@ export const Navbar = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-2xl bg-[#080d1a]/80 border-b border-white/[0.08] transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 py-2.5 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 backdrop-blur-2xl bg-[#080d1a]/90 border-b border-white/[0.08] w-full transition-all">
+      <div className="w-full px-4 sm:px-6 lg:px-8 h-18 py-2.5 flex items-center justify-between gap-4">
         
-        {/* Left Section: Mobile Menu + Brand Logo & Context */}
+        {/* Left Section: Mobile Menu + Clean Brand Logo & Name (Hintify style) */}
         <div className="flex items-center space-x-3 min-w-0 shrink-0">
           {/* Mobile Menu Button */}
           <button
             onClick={onToggleMobileSidebar}
             aria-label="Open mobile navigation menu"
-            className="md:hidden p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors shrink-0"
+            className="md:hidden p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors shrink-0"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -81,7 +81,7 @@ export const Navbar = ({
           {/* Brand Logo & Name */}
           <div 
             onClick={() => onSwitchView && onSwitchView('home')}
-            className="flex items-center space-x-2.5 cursor-pointer group"
+            className="flex items-center space-x-2.5 cursor-pointer group select-none"
           >
             <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-500/30 bg-gradient-to-br from-white/10 via-cyan-500/10 to-transparent flex items-center justify-center p-1.5 transition-transform group-hover:scale-105">
               <img 
@@ -90,29 +90,10 @@ export const Navbar = ({
                 className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.4)]" 
               />
             </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="text-xl font-black tracking-tight text-white">
-                Padh<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">AI</span>
-              </span>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/20 uppercase tracking-wider hidden sm:inline-block">
-                AI
-              </span>
-            </div>
+            <span className="text-xl font-black tracking-tight text-white">
+              Padh<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">AI</span>
+            </span>
           </div>
-
-          {/* Active Course Context Pill (Desktop) */}
-          {activeCourse && (
-            <div className="hidden xl:flex items-center space-x-1.5 pl-2 border-l border-white/10">
-              <button
-                onClick={() => onSwitchView('my-learning')}
-                className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 text-cyan-300 text-xs font-semibold max-w-[180px] truncate transition-all shadow-sm"
-                title={activeCourse.title}
-              >
-                <BookOpen className="w-3 h-3 text-cyan-400 shrink-0" />
-                <span className="truncate">{activeCourse.title}</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Center: Floating Island Dock / Pill Capsule (Inspired by Hintify) */}

@@ -186,11 +186,6 @@ export default function BranchedMenu({
                           </span>
                         ) : null}
                         <span className="branched-menu__label">{kid.label}</span>
-                        {kid.badge && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 ml-auto uppercase tracking-wider">
-                            {kid.badge}
-                          </span>
-                        )}
                       </button>
                     ))}
                   </div>

@@ -28,7 +28,7 @@ export const Sidebar = ({
       label: 'Learning Hub',
       children: [
         { value: 'home', label: 'Home', icon: Home },
-        { value: 'my-learning', label: 'My Courses', icon: BookOpen, badge: activeCourse ? 'Active' : null },
+        { value: 'my-learning', label: 'My Courses', icon: BookOpen },
       ]
     },
     {
@@ -69,46 +69,31 @@ export const Sidebar = ({
       className={`${
         isMobile 
           ? 'flex flex-col w-full h-full bg-[#080d1a] select-none z-50'
-          : 'w-64 shrink-0 hidden md:flex flex-col bg-[#080d1a]/95 backdrop-blur-2xl border-r border-white/[0.08] min-h-screen select-none sticky top-0 h-screen z-40 shadow-2xl'
+          : 'w-64 shrink-0 hidden md:flex flex-col bg-[#080d1a]/95 backdrop-blur-2xl border-r border-white/[0.08] select-none sticky top-[73px] h-[calc(100vh-73px)] z-20 shadow-xl'
       }`}
     >
-      {/* Brand Header */}
-      <div className="h-20 flex items-center justify-between px-5 border-b border-white/[0.08] bg-white/[0.01]">
-        <div 
-          onClick={() => handleItemClick('home')}
-          className="flex items-center space-x-3 cursor-pointer hover:opacity-95 transition-all group"
-        >
-          {/* Logo Tile */}
-          <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-500/30 bg-gradient-to-br from-white/10 via-cyan-500/10 to-transparent flex items-center justify-center p-1.5 transition-transform group-hover:scale-105">
-            <img 
-              src="/logo.svg" 
-              alt="PadhAI Logo" 
-              className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.4)]" 
-            />
-          </div>
-          
-          {/* Brand Name & Pill */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xl font-black tracking-tight text-white">
+      {/* Mobile Drawer Header Only (Desktop uses the Top-Level Navbar) */}
+      {isMobile && (
+        <div className="h-16 flex items-center justify-between px-5 border-b border-white/[0.08] bg-white/[0.02]">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/30 p-1 flex items-center justify-center">
+              <img src="/logo.svg" alt="PadhAI" className="w-full h-full object-contain" />
+            </div>
+            <span className="text-lg font-black tracking-tight text-white">
               Padh<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">AI</span>
             </span>
-            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-500/20 uppercase tracking-wider">
-              AI
-            </span>
           </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Close navigation menu"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
-
-        {/* Mobile Close Button */}
-        {isMobile && onClose && (
-          <button
-            onClick={onClose}
-            aria-label="Close navigation menu"
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Navigation Section via BranchedMenu */}
       <div className="flex-1 py-4 px-3 overflow-y-auto">

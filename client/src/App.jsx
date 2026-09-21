@@ -280,71 +280,73 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#080c14] text-slate-100 selection:bg-indigo-500/30 selection:text-indigo-200">
+    <div className="min-h-screen flex flex-col bg-[#080c14] text-slate-100 selection:bg-indigo-500/30 selection:text-indigo-200">
       
-      {/* Left Navigation Sidebar */}
-      <Sidebar
+      {/* Top Header - Standalone Full-Width Navbar across entire top */}
+      <Navbar
         currentView={getCurrentViewId()}
-        onSelectView={handleSidebarNav}
-        activeCourse={activeCourse}
+        onSwitchView={(v) => handleSidebarNav(v)}
+        onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
       />
 
-      {/* Mobile Drawer Overlay */}
-      {mobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div 
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#0b0f19] border-r border-white/10 z-50 shadow-2xl">
-            <Sidebar
-              isMobile={true}
-              onClose={() => setMobileSidebarOpen(false)}
-              currentView={getCurrentViewId()}
-              onSelectView={handleSidebarNav}
-              activeCourse={activeCourse}
-            />
+      {/* Global Notifications Banner */}
+      {authNotification && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 w-full">
+          <div
+            className={`p-3 rounded-2xl flex items-center justify-between text-xs font-semibold border backdrop-blur-md shadow-lg ${
+              authNotification.type === 'error'
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <UserCheck className="w-4 h-4 shrink-0" />
+              <span>{authNotification.message}</span>
+            </div>
+            <button
+              onClick={clearAuthNotification}
+              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Right Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Page Body: Sidebar on Left, Content on Right */}
+      <div className="flex-1 flex min-w-0">
         
-        {/* Top Header */}
-        <Navbar
-          activeCourse={activeCourse}
+        {/* Left Navigation Sidebar (Below Navbar) */}
+        <Sidebar
           currentView={getCurrentViewId()}
-          onSwitchView={(v) => handleSidebarNav(v)}
-          onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          onSelectView={handleSidebarNav}
+          activeCourse={activeCourse}
         />
 
-        {/* Global Notifications Banner */}
-        {authNotification && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 w-full">
-            <div
-              className={`p-3 rounded-2xl flex items-center justify-between text-xs font-semibold border backdrop-blur-md shadow-lg ${
-                authNotification.type === 'error'
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <UserCheck className="w-4 h-4 shrink-0" />
-                <span>{authNotification.message}</span>
-              </div>
-              <button
-                onClick={clearAuthNotification}
-                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+        {/* Mobile Drawer Overlay */}
+        {mobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            <div 
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+            <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#0b0f19] border-r border-white/10 z-50 shadow-2xl">
+              <Sidebar
+                isMobile={true}
+                onClose={() => setMobileSidebarOpen(false)}
+                currentView={getCurrentViewId()}
+                onSelectView={handleSidebarNav}
+                activeCourse={activeCourse}
+              />
             </div>
           </div>
         )}
 
-        {/* Global Authentication Modal */}
-        <AuthModal />
+        {/* Right Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          
+          {/* Global Authentication Modal */}
+          <AuthModal />
 
         {/* Multi-Page Routes */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
@@ -544,16 +546,17 @@ export function App() {
           </Routes>
         </main>
       </div>
-
-      {/* Redesigned Floating AI Tutor Trigger (Modern Minimalist Obsidian Badge) */}
-      <GlobalAITutorButton
-        activeTopic={activeCourse?.topic || 'General Concepts'}
-        activeLessonTitle={activeCourse?.title}
-        learnerLevel={activeCourse?.level || 'Beginner'}
-      />
-
     </div>
-  );
+
+    {/* Redesigned Floating AI Tutor Trigger (Modern Minimalist Obsidian Badge) */}
+    <GlobalAITutorButton
+      activeTopic={activeCourse?.topic || 'General Concepts'}
+      activeLessonTitle={activeCourse?.title}
+      learnerLevel={activeCourse?.level || 'Beginner'}
+    />
+
+  </div>
+);
 }
 
 export default App;
