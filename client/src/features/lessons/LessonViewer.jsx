@@ -430,6 +430,14 @@ export const LessonViewer = ({
                 </div>
               ) : (
                 <>
+                  {/* Demo Mode Banner */}
+                  {(lessonData?.isDemo || course?.isDemo) && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+                      <span>Lesson content generated in offline demo mode.</span>
+                    </div>
+                  )}
+
                   {/* Introduction */}
                   <div>
                     <h3 className="text-base font-bold text-white mb-2">

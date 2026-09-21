@@ -62,6 +62,12 @@ export const generateCourseOutlineWithGemini = async ({
 
   // Allow developer demo mode for end-to-end verification without consumption
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return generateDemoOutline({
       topic,
       learningGoal,
@@ -203,6 +209,12 @@ export const modifyCourseOutlineWithGemini = async ({
   }
 
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return modifyDemoOutline({ currentOutline, modifications, setupParams });
   }
 
@@ -373,7 +385,7 @@ const generateDemoOutline = ({
     modules: [],
   };
 
-  return normalizeCourseOutline(rawOutline, duration);
+  return { ...normalizeCourseOutline(rawOutline, duration), isDemo: true };
 };
 
 const modifyDemoOutline = ({ currentOutline, modifications, setupParams }) => {
@@ -383,5 +395,5 @@ const modifyDemoOutline = ({ currentOutline, modifications, setupParams }) => {
     title: `${currentOutline.title} (Updated)`,
     description: `${currentOutline.description} • Adjusted based on feedback: "${modifications}"`,
   };
-  return normalizeCourseOutline(updated, targetDays);
+  return { ...normalizeCourseOutline(updated, targetDays), isDemo: true };
 };

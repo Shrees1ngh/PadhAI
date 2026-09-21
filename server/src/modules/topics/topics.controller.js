@@ -50,6 +50,14 @@ export const saveTopic = async (req, res) => {
     const level = req.body.currentLevel || req.body.level || req.body.learnerLevel || "Beginner";
     const isDbReady = mongoose.connection.readyState === 1;
 
+    if (req.body.isDemo || content?.isDemo) {
+      return res.status(400).json({
+        success: false,
+        code: "DEMO_SAVE_DISABLED",
+        message: "Demo content cannot be saved to the database.",
+      });
+    }
+
     if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,

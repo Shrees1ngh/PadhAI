@@ -9,6 +9,7 @@ import { ENV } from "../config/env.js";
  */
 const generateDemoMaterialAnalysis = (filename = "Sample Document", learnerLevel = "Intermediate") => {
   return {
+    isDemo: true,
     documentTitle: filename.replace(/\.[^/.]+$/, ""),
     summary:
       "This document provides a comprehensive overview of core concepts, structured principles, and practical real-world applications tailored for " +
@@ -134,6 +135,12 @@ export const analyzeStudyMaterialWithGemini = async ({
   }
 
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return generateDemoMaterialAnalysis(filename, learnerLevel);
   }
 

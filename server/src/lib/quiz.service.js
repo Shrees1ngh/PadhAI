@@ -26,6 +26,12 @@ export const generateQuizWithGemini = async ({
 
   // Instant demo mode generation for testing
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return generateDemoQuiz({ lessonTitle, lessonContent, currentLevel });
   }
 
@@ -155,6 +161,7 @@ EXACT JSON SCHEMA TO SATISFY:
  */
 const generateDemoQuiz = ({ lessonTitle, lessonContent, currentLevel }) => {
   return {
+    isDemo: true,
     questions: [
       {
         question: `What is the primary architectural purpose of ${lessonTitle} as introduced in the lesson?`,

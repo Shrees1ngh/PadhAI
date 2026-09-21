@@ -44,6 +44,7 @@ export const FlashcardDeck = ({
   const [saveStatus, setSaveStatus] = useState(null); // 'saved' | 'error' | null
   const [saveMessage, setSaveMessage] = useState(null);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
 
   const fetchFlashcardDeck = useCallback(async () => {
     if (!lessonTitle && !courseTopic) return;
@@ -69,6 +70,7 @@ export const FlashcardDeck = ({
       });
 
       const returnedCards = res?.deck?.cards || res?.cards || [];
+      setIsDemo(Boolean(res?.isDemo || res?.deck?.isDemo || returnedCards.some(c => c.isDemo)));
       if (res?.success && Array.isArray(returnedCards) && returnedCards.length > 0) {
         setCards(returnedCards);
         setCurrentIndex(0);
@@ -188,10 +190,13 @@ export const FlashcardDeck = ({
               {/* Save Button */}
               <button
                 onClick={handleSave}
-                disabled={saving || saveStatus === 'saved'}
+                disabled={saving || saveStatus === 'saved' || isDemo}
+                title={isDemo ? 'Demo data cannot be saved' : 'Save flashcards'}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center space-x-1.5 ${
                   saveStatus === 'saved'
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : isDemo
+                    ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed opacity-50'
                     : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-white/20'
                 }`}
               >
@@ -202,7 +207,7 @@ export const FlashcardDeck = ({
                 ) : (
                   <Save className="w-3.5 h-3.5" />
                 )}
-                <span>{saving ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}</span>
+                <span>{saving ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : isDemo ? 'Save (Disabled in Demo)' : 'Save'}</span>
               </button>
 
               {/* Counter Badge */}
@@ -213,6 +218,14 @@ export const FlashcardDeck = ({
           )}
         </div>
       </div>
+
+      {/* Demo Banner */}
+      {isDemo && (
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+          <span>Flashcards generated in offline demo mode. Saving is disabled.</span>
+        </div>
+      )}
 
       {/* Save Notification banner */}
       {saveMessage && (

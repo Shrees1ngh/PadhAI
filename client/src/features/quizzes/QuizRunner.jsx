@@ -42,6 +42,8 @@ export const QuizRunner = ({
   const timerRef = useRef(null);
 
   // Fetch / Generate dynamic quiz from Gemini backend
+  const [isDemo, setIsDemo] = useState(false);
+
   const fetchQuiz = useCallback(async () => {
     if (!lessonTitle) return;
 
@@ -62,6 +64,8 @@ export const QuizRunner = ({
         courseTopic,
         currentLevel,
       });
+
+      setIsDemo(Boolean(res?.isDemo || res?.quiz?.isDemo || res?.quiz?.questions?.some?.(q => q.isDemo)));
 
       if (res?.success && res.quiz?.questions?.length > 0) {
         setQuestions(res.quiz.questions);
@@ -104,6 +108,15 @@ export const QuizRunner = ({
       });
 
       const percentage = Math.round((correctCount / questions.length) * 100);
+
+      if (isDemo) {
+        setSavingAttempt(false);
+        setSaveStatus({
+          success: false,
+          message: 'Demo Mode: Quiz evaluated locally. Saving is disabled for demo content.',
+        });
+        return;
+      }
 
       // Persist attempt via existing save API
       setSavingAttempt(true);
@@ -254,6 +267,12 @@ export const QuizRunner = ({
 
     return (
       <div className="max-w-3xl mx-auto space-y-6">
+        {isDemo && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+            <span>Quiz evaluated in offline demo mode. Results are not saved to the database.</span>
+          </div>
+        )}
         <div className="rounded-3xl p-6 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl space-y-8">
           
           {/* Result Score Header */}
@@ -440,6 +459,12 @@ export const QuizRunner = ({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {isDemo && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+          <span>Sample quiz questions generated in developer demo mode.</span>
+        </div>
+      )}
       <div className="rounded-3xl p-6 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl space-y-6">
         
         {/* Header: Lesson Quiz, Question Counter, Timer */}

@@ -9,6 +9,7 @@ import { ENV } from "../config/env.js";
  */
 const generateDemoFlashcards = ({ lessonTitle }) => {
   return {
+    isDemo: true,
     cards: [
       {
         question: `What is the primary architectural goal of ${lessonTitle}?`,
@@ -103,6 +104,12 @@ export const generateFlashcardsWithGemini = async ({
   }
 
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return generateDemoFlashcards({ lessonTitle });
   }
 
@@ -191,19 +198,41 @@ ${(contentText || lessonTitle).slice(0, 75000)}
     if (
       error.message?.includes("429") ||
       error.message?.includes("Quota exceeded") ||
-      error.message?.includes("RESOURCE_EXHAUSTED")
+      error.message?.includes("RESOURCE_EXHAUSTED") ||
+      error.status === 429
     ) {
-      console.warn("Flashcards hit rate limit, returning demo flashcards fallback.");
-      return generateDemoFlashcards({ lessonTitle, currentLevel });
+      const rateLimitErr = new Error(
+        "Gemini API rate limit or daily quota reached. Please provide your own Gemini API key in Settings."
+      );
+      rateLimitErr.status = 429;
+      rateLimitErr.code = "QUOTA_EXCEEDED";
+      throw rateLimitErr;
+    }
+    if (
+      error.message?.includes("API key not valid") ||
+      error.message?.includes("API_KEY_INVALID") ||
+      error.status === 401 ||
+      error.code === "INVALID_API_KEY"
+    ) {
+      const keyErr = new Error("Invalid Gemini API Key. Please verify your key in Settings.");
+      keyErr.status = 401;
+      keyErr.code = "INVALID_API_KEY";
+      throw keyErr;
     }
     if (error.name === "ZodError" || error.issues) {
       const issues = error.issues || error.errors || [];
-      throw new Error(
+      const valErr = new Error(
         `Gemini generated flashcards did not match the expected schema: ${issues
           .map((e) => `${e.path?.join?.(".") || ""}: ${e.message}`)
           .join(", ")}`
       );
+      valErr.status = 502;
+      valErr.code = "AI_OUTPUT_INVALID";
+      throw valErr;
     }
-    throw error;
+    const genErr = new Error(error.message || "Failed to generate flashcards.");
+    genErr.status = error.status || 502;
+    genErr.code = error.code || "AI_OUTPUT_INVALID";
+    throw genErr;
   }
 };

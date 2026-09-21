@@ -48,6 +48,12 @@ export const generateLessonContentWithGemini = async ({
 
   // Instant demo mode generation for local testing without external API cost
   if (activeKey === "DEMO_MODE") {
+    if (process.env.NODE_ENV === "production") {
+      const error = new Error("Demo mode is disabled in production. Please configure a valid Gemini API key.");
+      error.status = 401;
+      error.code = "INVALID_API_KEY";
+      throw error;
+    }
     return generateDemoLessonContent({
       courseTitle,
       moduleTitle,
@@ -186,6 +192,7 @@ const generateDemoLessonContent = ({
   learningPreference,
 }) => {
   return {
+    isDemo: true,
     title: lessonTitle,
     learningObjective: learningObjective,
     introduction: `Welcome to **${lessonTitle}**, part of the **${moduleTitle}** module in *${courseTitle}*.\n\n` +

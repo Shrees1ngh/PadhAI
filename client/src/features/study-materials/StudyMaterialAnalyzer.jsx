@@ -424,6 +424,14 @@ export const StudyMaterialAnalyzer = () => {
                 </div>
               </div>
 
+              {/* Demo Mode Banner */}
+              {analysisResult.isDemo && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+                  <span>Document analysis generated in offline demo mode.</span>
+                </div>
+              )}
+
               {/* 1. Summary Section */}
               {analysisResult.summary && (
                 <div className="space-y-2">

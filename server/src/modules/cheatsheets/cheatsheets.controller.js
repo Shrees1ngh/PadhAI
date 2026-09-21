@@ -64,6 +64,14 @@ export const saveCheatsheetHandler = async (req, res) => {
     const validatedInput = saveCheatsheetInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
 
+    if (req.body.isDemo || validatedInput.cheatsheet?.isDemo) {
+      return res.status(400).json({
+        success: false,
+        code: "DEMO_SAVE_DISABLED",
+        message: "Demo content cannot be saved to the database.",
+      });
+    }
+
     if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,

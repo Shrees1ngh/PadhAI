@@ -230,10 +230,13 @@ export const QuickLearnView = ({
           {/* Save Button */}
           <button
             onClick={handleSaveTopic}
-            disabled={saving || saved || loading || !topicData}
+            disabled={saving || saved || loading || !topicData || Boolean(topicData?.isDemo)}
+            title={topicData?.isDemo ? 'Demo data cannot be saved' : 'Save Topic'}
             className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all flex items-center space-x-1.5 ${
               saved
                 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                : topicData?.isDemo
+                ? 'bg-white/5 border-white/10 text-slate-500 opacity-50 cursor-not-allowed'
                 : 'bg-indigo-600/30 border-indigo-500/40 hover:bg-indigo-600 text-white disabled:opacity-40'
             }`}
           >
@@ -244,7 +247,7 @@ export const QuickLearnView = ({
             ) : (
               <Save className="w-3.5 h-3.5" />
             )}
-            <span>{saving ? 'Saving...' : saved ? 'Saved' : 'Save Topic'}</span>
+            <span>{saving ? 'Saving...' : saved ? 'Saved' : topicData?.isDemo ? 'Save (Disabled in Demo)' : 'Save Topic'}</span>
           </button>
 
           {/* PDF Export Button */}
@@ -314,6 +317,14 @@ export const QuickLearnView = ({
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Try Again</span>
           </button>
+        </div>
+      )}
+
+      {/* Demo Banner */}
+      {topicData?.isDemo && !loading && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
+          <span>Generated in developer demo mode. Saving is disabled for demo topics.</span>
         </div>
       )}
 
