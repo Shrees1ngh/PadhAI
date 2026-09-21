@@ -3,60 +3,61 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
   Printer,
-  Edit2,
   Copy,
   Check,
   ArrowLeft,
   Sparkles,
-  AlertTriangle,
-  Lightbulb,
-  Code2,
-  Table,
-  CheckCircle2,
   RefreshCw,
   Save,
-  BookOpen,
-  HelpCircle,
-  AlertCircle,
-  Star,
-  GraduationCap,
-  Layers,
-  Zap,
-  Tag,
   Search,
   TrendingUp,
   Terminal,
   Calculator,
   Scale,
   Atom,
-  ChevronDown,
-  ChevronUp,
   Clock,
-  ExternalLink
+  Trash2,
+  AlertCircle,
+  BookOpen,
+  Layers,
+  Zap,
 } from 'lucide-react';
-import { generateCheatsheet, saveCheatsheet, fetchSavedCheatsheets } from '../../services/api';
+import {
+  generateCheatsheet,
+  saveCheatsheet,
+  fetchSavedCheatsheets,
+  deleteSavedCheatsheet,
+} from '../../services/api';
+import BlockRenderer from './BlockRenderer';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 
-const BADGE_COLORS = [
-  { border: 'border-rose-500/40', bg: 'bg-rose-500/10', text: 'text-rose-400', lightBorder: 'border-rose-300', lightHeader: 'text-rose-700', lightBg: 'bg-rose-50/70', badge: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
-  { border: 'border-emerald-500/40', bg: 'bg-emerald-500/10', text: 'text-emerald-400', lightBorder: 'border-emerald-300', lightHeader: 'text-emerald-700', lightBg: 'bg-emerald-50/70', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  { border: 'border-cyan-500/40', bg: 'bg-cyan-500/10', text: 'text-cyan-400', lightBorder: 'border-cyan-300', lightHeader: 'text-cyan-700', lightBg: 'bg-cyan-50/70', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' },
-  { border: 'border-amber-500/40', bg: 'bg-amber-500/10', text: 'text-amber-400', lightBorder: 'border-amber-300', lightHeader: 'text-amber-700', lightBg: 'bg-amber-50/70', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
-  { border: 'border-indigo-500/40', bg: 'bg-indigo-500/10', text: 'text-indigo-400', lightBorder: 'border-indigo-300', lightHeader: 'text-indigo-700', lightBg: 'bg-indigo-50/70', badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
-  { border: 'border-purple-500/40', bg: 'bg-purple-500/10', text: 'text-purple-400', lightBorder: 'border-purple-300', lightHeader: 'text-purple-700', lightBg: 'bg-purple-50/70', badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
-  { border: 'border-blue-500/40', bg: 'bg-blue-500/10', text: 'text-blue-400', lightBorder: 'border-blue-300', lightHeader: 'text-blue-700', lightBg: 'bg-blue-50/70', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
-  { border: 'border-teal-500/40', bg: 'bg-teal-500/10', text: 'text-teal-400', lightBorder: 'border-teal-300', lightHeader: 'text-teal-700', lightBg: 'bg-teal-50/70', badge: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
+const PRESET_TOPICS = [
+  { label: 'Marginal Utility & Consumer Equilibrium', domain: 'economics', icon: TrendingUp, level: 'Beginner' },
+  { label: 'Binary Search & Complexity Analysis', domain: 'computer_science', icon: Terminal, level: 'Beginner' },
+  { label: 'French Revolution & Fall of Bastille', domain: 'history', icon: Clock, level: 'Intermediate' },
+  { label: 'Photosynthesis & Light-Independent Cycle', domain: 'biology', icon: Atom, level: 'Intermediate' },
+  { label: 'Capital Market & Financial Instruments', domain: 'business_finance', icon: TrendingUp, level: 'Intermediate' },
+  { label: 'Inflation & Monetary Policy Transmission', domain: 'economics', icon: TrendingUp, level: 'Beginner' },
+  { label: "Ohm's Law & Circuit Resistance", domain: 'physics', icon: Calculator, level: 'Beginner' },
 ];
 
-const PRESET_TOPICS = [
-  { label: 'Marginal Utility & Consumer Equilibrium', domain: 'economics', icon: TrendingUp, category: 'Economics' },
-  { label: 'Supply & Demand Price Elasticity', domain: 'economics', icon: TrendingUp, category: 'Economics' },
-  { label: 'Binary Search Trees & Balancing', domain: 'cs', icon: Terminal, category: 'CS & DSA' },
-  { label: 'Dynamic Programming & Memoization', domain: 'cs', icon: Terminal, category: 'CS & DSA' },
-  { label: 'Calculus: Derivatives & Integrals', domain: 'math', icon: Calculator, category: 'Math & Science' },
-  { label: 'Thermodynamics Laws & Entropy', domain: 'science', icon: Atom, category: 'Science' },
-  { label: 'Fundamental Rights & Articles (Constitution)', domain: 'law', icon: Scale, category: 'Law & Civics' },
-];
+const DOMAIN_BADGES = {
+  economics: { bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'Economics' },
+  business_finance: { bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'Business & Finance' },
+  accounting: { bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'Accounting' },
+  computer_science: { bg: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30', label: 'Computer Science' },
+  programming: { bg: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30', label: 'Programming' },
+  mathematics: { bg: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30', label: 'Mathematics' },
+  statistics: { bg: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30', label: 'Statistics' },
+  physics: { bg: 'bg-amber-500/15 text-amber-400 border-amber-500/30', label: 'Physics' },
+  chemistry: { bg: 'bg-amber-500/15 text-amber-400 border-amber-500/30', label: 'Chemistry' },
+  biology: { bg: 'bg-teal-500/15 text-teal-400 border-teal-500/30', label: 'Biology' },
+  history: { bg: 'bg-rose-500/15 text-rose-400 border-rose-500/30', label: 'History' },
+  law: { bg: 'bg-purple-500/15 text-purple-400 border-purple-500/30', label: 'Law & Civics' },
+  geography: { bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30', label: 'Geography' },
+  political_science: { bg: 'bg-purple-500/15 text-purple-400 border-purple-500/30', label: 'Political Science' },
+  general: { bg: 'bg-slate-500/15 text-slate-400 border-slate-500/30', label: 'General' },
+};
 
 export const CheatsheetViewer = ({
   lessonTitle = '',
@@ -71,11 +72,12 @@ export const CheatsheetViewer = ({
 }) => {
   const [activeTopic, setActiveTopic] = useState(lessonTitle || '');
   const [activeLevel, setActiveLevel] = useState(currentLevel || 'Beginner');
+  const [activeLanguage, setActiveLanguage] = useState('english'); // 'english' | 'hinglish'
   const [customInput, setCustomInput] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(!lessonTitle);
 
   const [cheatsheet, setCheatsheet] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState(0);
   const [error, setError] = useState(null);
   const [styleMode, setStyleMode] = useState('paper'); // 'paper' | 'dark'
   const [copied, setCopied] = useState(false);
@@ -86,6 +88,18 @@ export const CheatsheetViewer = ({
   const [loadingSaved, setLoadingSaved] = useState(false);
 
   const abortControllerRef = useRef(null);
+
+  // Staged loading feedback ticker
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setLoadingStage(0);
+      interval = setInterval(() => {
+        setLoadingStage((prev) => (prev < 3 ? prev + 1 : prev));
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const loadSavedCheatsheets = useCallback(async () => {
     setLoadingSaved(true);
@@ -101,15 +115,22 @@ export const CheatsheetViewer = ({
     }
   }, []);
 
-  const fetchCheatsheetData = useCallback(
-    async (topicToGenerate, contextToUse = '', contentToUse = undefined) => {
-      const targetTopic = topicToGenerate || activeTopic;
-      if (!targetTopic || !targetTopic.trim()) return;
+  useEffect(() => {
+    loadSavedCheatsheets();
+  }, [loadSavedCheatsheets]);
 
-      // Abort any in-flight request
+  const handleGenerate = useCallback(
+    async (topicToFetch, levelOverride, languageOverride, forceRegenerate = false) => {
+      const targetTopic = (topicToFetch || activeTopic || '').trim();
+      if (!targetTopic) return;
+
+      const targetLevel = levelOverride || activeLevel;
+      const targetLanguage = languageOverride || activeLanguage;
+
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
@@ -119,840 +140,598 @@ export const CheatsheetViewer = ({
       setSaveMessage(null);
 
       try {
-        const payloadContent =
-          contentToUse !== undefined
-            ? (typeof contentToUse === 'object' ? JSON.stringify(contentToUse) : contentToUse)
-            : undefined;
+        const payload = {
+          topic: targetTopic,
+          lessonTitle: targetTopic,
+          lessonContent: lessonTitle ? lessonContent : '',
+          courseTopic: courseTopic || '',
+          currentLevel: targetLevel,
+          language: targetLanguage,
+          courseId: courseId || '',
+          moduleIndex: Number(moduleIndex) || 0,
+          lessonIndex: Number(lessonIndex) || 0,
+          sourceType: sourceType || 'standalone',
+          regenerate: Boolean(forceRegenerate),
+        };
 
-        const res = await generateCheatsheet(
-          {
-            lessonTitle: targetTopic,
-            lessonContent: payloadContent,
-            courseTopic: contextToUse,
-            currentLevel: activeLevel || 'Beginner',
-            courseId: courseId || undefined,
-            moduleIndex: moduleIndex !== undefined ? moduleIndex : undefined,
-            lessonIndex: lessonIndex !== undefined ? lessonIndex : undefined,
-            sourceType: sourceType || 'lesson',
-          },
-          undefined,
-          { signal: controller.signal }
-        );
+        const res = await generateCheatsheet(payload, null, {
+          signal: controller.signal,
+        });
 
         if (res?.success && res.cheatsheet) {
           setCheatsheet(res.cheatsheet);
-          setIsSearchOpen(false);
+          setActiveTopic(targetTopic);
+          setActiveLevel(targetLevel);
+          setActiveLanguage(targetLanguage);
         } else {
-          throw new Error(res?.message || "Couldn't generate cheatsheet right now.");
+          throw new Error(res?.message || 'Failed to generate cheatsheet.');
         }
       } catch (err) {
-        if (err?.name === 'CanceledError' || err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') {
+        if (err.name === 'AbortError' || err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
           return;
         }
-        console.error('Cheatsheet generation error:', err);
-        setError(err?.message || "Couldn't generate cheatsheet right now.");
-        setCheatsheet(null);
+        console.error('Cheatsheet fetch error:', err);
+        setError(err.response?.data?.message || err.message || 'An error occurred while generating cheatsheet.');
       } finally {
         if (abortControllerRef.current === controller) {
           setLoading(false);
+          abortControllerRef.current = null;
         }
       }
     },
-    [activeTopic, activeLevel, courseId, moduleIndex, lessonIndex, sourceType]
+    [activeTopic, activeLevel, activeLanguage, lessonTitle, lessonContent, courseTopic, courseId, moduleIndex, lessonIndex, sourceType]
   );
 
+  // Auto-generate ONLY if mounted with an explicit lessonTitle from parent
   useEffect(() => {
-    if (lessonTitle && lessonTitle.trim()) {
-      setActiveTopic(lessonTitle);
-      fetchCheatsheetData(lessonTitle, courseTopic, lessonContent);
-    } else {
-      loadSavedCheatsheets();
+    if (lessonTitle && lessonTitle.trim().length > 0) {
+      handleGenerate(lessonTitle, currentLevel, 'english');
     }
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [lessonTitle, courseTopic, lessonContent, fetchCheatsheetData, loadSavedCheatsheets]);
+  }, [lessonTitle, currentLevel]);
 
-  const handleCustomTopicSubmit = (e) => {
+  const handleCustomSearchSubmit = (e) => {
     e.preventDefault();
     if (!customInput.trim()) return;
-    const newTopic = customInput.trim();
-    setActiveTopic(newTopic);
-    // When the user types a custom topic, do NOT send the previous lessonContent
-    fetchCheatsheetData(newTopic, '', undefined);
+    setActiveTopic(customInput.trim());
+    handleGenerate(customInput.trim(), activeLevel, activeLanguage);
   };
 
-  const handleSelectPreset = (preset) => {
-    setActiveTopic(preset.label);
-    setCustomInput(preset.label);
-    fetchCheatsheetData(preset.label, preset.category, undefined);
+  const handleSelectPreset = (topicStr, levelStr) => {
+    setActiveTopic(topicStr);
+    setCustomInput(topicStr);
+    if (levelStr) setActiveLevel(levelStr);
+    handleGenerate(topicStr, levelStr || activeLevel, activeLanguage);
   };
 
-  const handleSelectSavedCheatsheet = (savedDoc) => {
-    setCheatsheet(savedDoc);
-    setActiveTopic(savedDoc.title || savedDoc.lessonTitle);
-    setIsSearchOpen(false);
+  const handleLoadSaved = (item) => {
+    setCheatsheet(item.cheatsheet || item);
+    setActiveTopic(item.lessonTitle || item.title || item.topicKey);
+    setActiveLevel(item.level || 'Beginner');
+    setActiveLanguage(item.language || 'english');
+    setError(null);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleCopy = async () => {
-    if (!cheatsheet) return;
-
-    let textToCopy = `# ${cheatsheet.unitNumber || 'UNIT'} CHEATSHEET: ${cheatsheet.title || activeTopic}\n\n`;
-    if (cheatsheet.overview) {
-      textToCopy += `## Overview\n${cheatsheet.overview}\n\n`;
-    }
-
-    if (cheatsheet.cards && cheatsheet.cards.length > 0) {
-      cheatsheet.cards.forEach((c) => {
-        textToCopy += `### ${c.number || ''}. ${c.title} (${c.categoryType || 'Concept'})\n`;
-        if (c.definition) textToCopy += `${c.definition}\n\n`;
-        if (c.bulletPoints && c.bulletPoints.length > 0) {
-          c.bulletPoints.forEach((b) => { textToCopy += `- ${b}\n`; });
-          textToCopy += `\n`;
-        }
-        if (c.formula) textToCopy += `**Formula:** ${c.formula}\n\n`;
-        if (c.codeSnippet) textToCopy += `\`\`\`${c.codeLanguage || ''}\n${c.codeSnippet}\n\`\`\`\n\n`;
-        if (c.example) textToCopy += `*Real-World Example:* ${c.example}\n\n`;
-        if (c.visualDiagram) textToCopy += `\`\`\`\n${c.visualDiagram}\n\`\`\`\n\n`;
-        if (c.examTip) textToCopy += `> **Exam Tip:** ${c.examTip}\n\n`;
-      });
-    }
-
-    if (cheatsheet.quickRevisionPoints && cheatsheet.quickRevisionPoints.length > 0) {
-      textToCopy += `## Quick Revision Checklist\n`;
-      cheatsheet.quickRevisionPoints.forEach((p) => { textToCopy += `✓ ${p}\n`; });
-      textToCopy += `\n`;
-    }
-
-    if (cheatsheet.examPoints && cheatsheet.examPoints.length > 0) {
-      textToCopy += `## Important Exam & Interview Questions\n`;
-      cheatsheet.examPoints.forEach((q) => { textToCopy += `- ${q}\n`; });
-      textToCopy += `\n`;
-    }
-
-    if (cheatsheet.topperTip) {
-      textToCopy += `## Topper's Strategy Tip\n${cheatsheet.topperTip}\n`;
-    }
-
+  const handleDeleteSaved = async (e, id) => {
+    e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
+      const res = await deleteSavedCheatsheet(id);
+      if (res?.success) {
+        setSavedCheatsheets((prev) => prev.filter((item) => item._id !== id));
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
   const handleSave = async () => {
-    if (!cheatsheet || saving || cheatsheet.isDemo) return;
+    if (!cheatsheet || cheatsheet.isDemo) return;
     setSaving(true);
     setSaveStatus(null);
     setSaveMessage(null);
 
     try {
       const res = await saveCheatsheet({
-        courseId: courseId || undefined,
-        moduleIndex: moduleIndex !== undefined ? moduleIndex : undefined,
-        lessonIndex: lessonIndex !== undefined ? lessonIndex : undefined,
-        lessonTitle: activeTopic || cheatsheet.title || 'Revision Cheatsheet',
-        sourceType: sourceType || 'lesson',
+        courseId: courseId || '',
+        moduleIndex: Number(moduleIndex) || 0,
+        lessonIndex: Number(lessonIndex) || 0,
+        lessonTitle: activeTopic,
+        topic: activeTopic,
+        sourceType: sourceType || 'standalone',
+        currentLevel: activeLevel,
+        language: activeLanguage,
+        domain: cheatsheet.domain || 'general',
+        isDemo: Boolean(cheatsheet.isDemo),
         cheatsheet,
       });
 
       if (res?.success) {
-        setSaveStatus('saved');
-        setSaveMessage('Cheatsheet saved successfully to database!');
+        setSaveStatus('success');
+        setSaveMessage('Cheatsheet saved to your collection!');
         loadSavedCheatsheets();
+        setTimeout(() => setSaveStatus(null), 3500);
       } else {
-        throw new Error(res?.message || 'Failed to save cheatsheet.');
+        setSaveStatus('error');
+        setSaveMessage(res?.message || 'Could not save cheatsheet.');
       }
     } catch (err) {
       setSaveStatus('error');
-      setSaveMessage(err?.message || 'Failed to save cheatsheet.');
+      setSaveMessage(err.response?.data?.message || err.message || 'Failed to save cheatsheet.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Process cards
-  const cardsToRender = React.useMemo(() => {
-    if (cheatsheet?.cards && cheatsheet.cards.length > 0) {
-      return cheatsheet.cards;
-    }
-    const synthetic = [];
-    let count = 1;
-
-    (cheatsheet?.keyConcepts || []).forEach((c) => {
-      synthetic.push({
-        number: count++,
-        title: c.concept || 'Core Concept',
-        definition: c.explanation || '',
-        bulletPoints: [],
-        categoryType: 'Concept',
-      });
-    });
-
-    (cheatsheet?.definitions || []).forEach((d) => {
-      synthetic.push({
-        number: count++,
-        title: d.term || 'Definition',
-        definition: d.definition || '',
-        bulletPoints: [],
-        categoryType: 'Definition',
-      });
-    });
-
-    (cheatsheet?.formulas || []).forEach((f) => {
-      synthetic.push({
-        number: count++,
-        title: f.name || 'Formula / Rule',
-        definition: f.explanation || '',
-        formula: f.formula,
-        bulletPoints: [],
-        categoryType: 'Formula',
-      });
-    });
-
-    (cheatsheet?.examples || []).forEach((e) => {
-      synthetic.push({
-        number: count++,
-        title: e.topic || 'Practical Example',
-        definition: e.explanation || '',
-        example: e.example || '',
-        bulletPoints: [],
-        categoryType: 'Example',
-      });
-    });
-
-    return synthetic;
-  }, [cheatsheet]);
+  const handlePrint = () => {
+    window.print();
+  };
 
   const isPaper = styleMode === 'paper';
+  const domainInfo = DOMAIN_BADGES[cheatsheet?.domain] || DOMAIN_BADGES.general;
+  const blocksList = Array.isArray(cheatsheet?.blocks) ? cheatsheet.blocks : [];
+
+  const loadingStages = [
+    'Analyzing topic and theoretical domain...',
+    'Calibrating Bloom scaffolding and formulas...',
+    'Synthesizing interactive graphs & diagrams...',
+    'Drafting intuitive worked examples...',
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      
-      {/* ======================================================== */}
-      {/* TOP BAR: ACTION BAR & TOPIC PICKER */}
-      {/* ======================================================== */}
-      <div className="bg-[#0b0f19] border border-white/10 rounded-3xl p-5 shadow-2xl print:hidden space-y-4">
-        
-        {/* Header Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-indigo-400" />
-                <span>AI Visual Cheatsheet Generator</span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                {activeTopic ? (
-                  <>Topic: <span className="font-bold text-indigo-300">{activeTopic}</span> • High-Yield Revision Matrix</>
-                ) : (
-                  <>Search any topic to generate a dense, exam-ready revision sheet</>
-                )}
-              </p>
-            </div>
-          </div>
+    <div
+      className={`min-h-screen transition-colors duration-300 ${
+        isPaper ? 'bg-slate-100 text-slate-900' : 'bg-[#090D16] text-[#F3F4F6]'
+      } print:bg-white print:text-black print:min-h-0`}
+    >
+      {/* Print Stylesheet Overrides */}
+      <style>{`
+        @media print {
+          body { background: white !important; color: black !important; font-size: 11pt; }
+          .print\\:hidden { display: none !important; }
+          .print\\:break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
+          .print\\:shadow-none { box-shadow: none !important; border: 1px solid #CBD5E1 !important; }
+        }
+      `}</style>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Toggle Topic Generator Search */}
+      {/* Top Navbar / Controls */}
+      <div
+        className={`sticky top-0 z-30 backdrop-blur-md border-b px-4 sm:px-8 py-3.5 flex items-center justify-between transition-colors print:hidden ${
+          isPaper ? 'bg-white/90 border-slate-300 shadow-sm' : 'bg-[#0D1322]/90 border-white/10'
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          {onBack ? (
             <button
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition-all flex items-center space-x-1.5"
+              onClick={onBack}
+              type="button"
+              className={`p-2 rounded-xl border flex items-center space-x-1.5 text-xs font-semibold transition-all ${
+                isPaper
+                  ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+              }`}
             >
-              <Search className="w-3.5 h-3.5" />
-              <span>{isSearchOpen ? 'Close Search' : 'Change Topic / Search'}</span>
-              {isSearchOpen ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
             </button>
-
-            {cheatsheet && (
-              <>
-                {/* Save Button */}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || saveStatus === 'saved' || Boolean(cheatsheet?.isDemo)}
-                  title={cheatsheet?.isDemo ? 'Demo data cannot be saved' : 'Save cheatsheet'}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border flex items-center space-x-1.5 ${
-                    saveStatus === 'saved'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : cheatsheet?.isDemo
-                      ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed opacity-50'
-                      : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-white/20'
-                  }`}
-                >
-                  {saving ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                  ) : saveStatus === 'saved' ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Save className="w-3.5 h-3.5" />
-                  )}
-                  <span>{saving ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : cheatsheet?.isDemo ? 'Save (Disabled in Demo)' : 'Save'}</span>
-                </button>
-
-                {/* Copy Structured Text */}
-                <button
-                  onClick={handleCopy}
-                  className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center space-x-1.5"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
-
-                {/* Print / PDF Button */}
-                <button
-                  onClick={handlePrint}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/25 flex items-center space-x-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print / PDF</span>
-                </button>
-
-                {/* Theme Switcher */}
-                <button
-                  onClick={() => setStyleMode(isPaper ? 'dark' : 'paper')}
-                  className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold transition-all flex items-center space-x-1.5"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>{isPaper ? 'Infographic Sheet' : 'Dark Mode'}</span>
-                </button>
-              </>
-            )}
-          </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-purple-500/20">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h1 className={`text-base font-bold tracking-tight ${isPaper ? 'text-slate-900' : 'text-white'}`}>
+                  PadhAI Cheatsheet Generator
+                </h1>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Search & Topic Customizer Dropdown / Accordion */}
-        <AnimatePresence>
-          {isSearchOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="pt-4 border-t border-white/10 space-y-3 overflow-hidden"
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Paper / Dark Mode Toggle */}
+          <div
+            className={`flex items-center p-1 rounded-xl border ${
+              isPaper ? 'bg-slate-200 border-slate-300' : 'bg-slate-900 border-white/10'
+            }`}
+          >
+            <button
+              onClick={() => setStyleMode('paper')}
+              type="button"
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                isPaper ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
             >
-              <form onSubmit={handleCustomTopicSubmit} className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={customInput}
-                    onChange={(e) => setCustomInput(e.target.value)}
-                    placeholder="Enter ANY topic (e.g., Marginal Utility, Supply & Demand, Binary Search Trees, Calculus...)"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors font-medium"
-                  />
-                </div>
-                
-                {/* Level selector */}
-                <select
-                  value={activeLevel}
-                  onChange={(e) => setActiveLevel(e.target.value)}
-                  className="px-3 py-2.5 bg-white/5 border border-white/15 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
-                >
-                  <option value="Beginner" className="bg-[#0b0f19]">Beginner Level</option>
-                  <option value="Intermediate" className="bg-[#0b0f19]">Intermediate Level</option>
-                  <option value="Advanced" className="bg-[#0b0f19]">Advanced Level</option>
-                </select>
+              📄 Paper
+            </button>
+            <button
+              onClick={() => setStyleMode('dark')}
+              type="button"
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                !isPaper ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🌙 Dark
+            </button>
+          </div>
 
-                <button
-                  type="submit"
-                  disabled={loading || !customInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-lg flex items-center justify-center space-x-1.5"
-                >
-                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>Generate Cheatsheet</span>
-                </button>
-              </form>
+          {cheatsheet && (
+            <>
+              {/* Regenerate Button */}
+              <button
+                onClick={() => handleGenerate(activeTopic, activeLevel, activeLanguage, true)}
+                disabled={loading}
+                type="button"
+                className={`p-2 rounded-xl border flex items-center space-x-1.5 text-xs font-semibold transition-all ${
+                  isPaper
+                    ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                }`}
+                title="Regenerate with fresh AI response (bypasses cache)"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Regenerate</span>
+              </button>
 
-              {/* Quick Topic Preset Chips */}
-              <div className="space-y-1.5 pt-1">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Quick Topics across Domains:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {PRESET_TOPICS.map((preset, pIdx) => {
-                    const Icon = preset.icon;
-                    return (
-                      <button
-                        key={pIdx}
-                        onClick={() => handleSelectPreset(preset)}
-                        className={`px-3 py-1.5 rounded-xl text-[11px] font-medium border transition-all flex items-center space-x-1.5 ${
-                          activeTopic === preset.label
-                            ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500 shadow-sm'
-                            : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-                        }`}
-                      >
-                        <Icon className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>{preset.label}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-slate-400 uppercase">
-                          {preset.category}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Save Button */}
+              <button
+                onClick={handleSave}
+                disabled={saving || cheatsheet.isDemo}
+                type="button"
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow-md ${
+                  cheatsheet.isDemo
+                    ? 'bg-slate-500/20 text-slate-400 border border-white/10 cursor-not-allowed opacity-60'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90'
+                }`}
+              >
+                <Save className={`w-3.5 h-3.5 ${saving ? 'animate-spin' : ''}`} />
+                <span>{saving ? 'Saving...' : 'Save Sheet'}</span>
+              </button>
+
+              {/* Print Button */}
+              <button
+                onClick={handlePrint}
+                type="button"
+                className={`p-2 rounded-xl border flex items-center space-x-1.5 text-xs font-semibold transition-all ${
+                  isPaper
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-700 shadow-sm'
+                    : 'bg-purple-600/20 border-purple-500/40 text-purple-300 hover:bg-purple-600/30'
+                }`}
+                title="Print or Save as PDF (Ctrl+P)"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="hidden sm:inline">Print (Ctrl+P)</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8 space-y-6">
+        {/* Save feedback banner */}
+        <AnimatePresence>
+          {saveStatus && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center space-x-2 border shadow-lg ${
+                saveStatus === 'success'
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+              }`}
+            >
+              {saveStatus === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              <span>{saveMessage}</span>
             </motion.div>
           )}
         </AnimatePresence>
 
-      </div>
-
-      {/* Save Notification Toast */}
-      {saveMessage && (
-        <div
-          className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
-            saveStatus === 'saved'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-          }`}
-        >
-          <div className="flex items-center space-x-2">
-            {saveStatus === 'saved' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            )}
-            <span>{saveMessage}</span>
+        {/* Demo Mode Notice Banner */}
+        {cheatsheet?.isDemo && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 flex-shrink-0" />
+            <span>
+              <strong>Developer Demo Mode:</strong> Generated in offline demo mode. Configure your personal Gemini API key in Settings to generate 100% custom real-time curriculum.
+            </span>
           </div>
-          <button onClick={() => setSaveMessage(null)} className="text-xs opacity-60 hover:opacity-100 font-bold ml-2">
-            ✕
-          </button>
-        </div>
-      )}
+        )}
 
-      {/* Loading State */}
-      {loading && (
-        <div className="rounded-3xl p-16 bg-[#0d1322] border border-white/10 text-center space-y-4 shadow-2xl">
-          <RefreshCw className="w-10 h-10 text-indigo-400 animate-spin mx-auto" />
-          <h3 className="text-base font-bold text-white">Generating Domain-Specific Visual Cheatsheet...</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Structuring definitions, visual graphs/curves, formulas, real-world examples, and revision matrix for <span className="text-indigo-300 font-bold">"{activeTopic}"</span>.
-          </p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {!loading && error && !cheatsheet && (
-        <div className="rounded-3xl p-12 bg-[#0d1322] border border-rose-500/20 text-center space-y-4 shadow-2xl">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-bold text-white">Cheatsheet Generation Notice</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">{error}</p>
-          <button
-            onClick={() => fetchCheatsheetData(activeTopic, '')}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg"
+        {/* Search & Topic Selector Bar (Always visible in standalone mode) */}
+        {!lessonTitle && (
+          <div
+            className={`p-5 rounded-2xl border transition-all shadow-sm print:hidden ${
+              isPaper ? 'bg-white border-slate-300' : 'bg-slate-900/60 border-white/10'
+            }`}
           >
-            Regenerate Cheatsheet
-          </button>
-        </div>
-      )}
+            <form onSubmit={handleCustomSearchSubmit} className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    placeholder="Enter ANY topic (e.g. Marginal Utility, Binary Search, French Revolution, Photosynthesis...)"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm font-medium border transition-all focus:outline-none focus:ring-2 ${
+                      isPaper
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 focus:ring-indigo-500/30'
+                        : 'bg-slate-950 border-white/10 text-white focus:ring-purple-500/30'
+                    }`}
+                  />
+                </div>
 
-      {/* ======================================================== */}
-      {/* STANDALONE EMPTY STATE: SEARCH & SAVED CHEATSHEETS */}
-      {/* ======================================================== */}
-      {!loading && !cheatsheet && !error && (
-        <div className="space-y-6">
-          <div className="rounded-3xl p-8 sm:p-12 bg-[#0d1322] border border-white/10 shadow-2xl text-center space-y-6">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20">
-              <Sparkles className="w-8 h-8" />
-            </div>
-            <div className="max-w-md mx-auto space-y-2">
-              <h3 className="text-xl font-black text-white tracking-tight">
-                Visual Cheatsheet Studio
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Generate high-yield visual cheat sheets with formulas, code snippets, curves, comparison tables, and exam traps across any domain.
-              </p>
-            </div>
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-black shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-2 mx-auto"
-            >
-              <Search className="w-4 h-4" />
-              <span>Search a Topic to Generate</span>
-            </button>
-          </div>
-
-          {/* Saved Cheatsheets Collection */}
-          {savedCheatsheets && savedCheatsheets.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center space-x-2">
-                  <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Saved Cheatsheets ({savedCheatsheets.length})</span>
-                </h4>
-                {loadingSaved && <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {savedCheatsheets.map((saved, idx) => (
-                  <div
-                    key={saved._id || idx}
-                    onClick={() => handleSelectSavedCheatsheet(saved)}
-                    className="p-5 rounded-2xl bg-[#0b0f19] hover:bg-[#111627] border border-white/10 hover:border-indigo-500/40 transition-all cursor-pointer space-y-3 group shadow-lg"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="px-2 py-0.5 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold uppercase text-[10px]">
-                        {saved.topicDomain || 'General'}
-                      </span>
-                      <span className="text-[11px] text-slate-400 flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{saved.cards?.length || 0} cards</span>
-                      </span>
-                    </div>
-
-                    <div>
-                      <h5 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
-                        {saved.title || saved.lessonTitle}
-                      </h5>
-                      <p className="text-xs text-slate-400 line-clamp-2 mt-1">
-                        {saved.overview || saved.subtitle || 'Revision cheatsheet notes.'}
-                      </p>
-                    </div>
-
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>{saved.unitNumber || 'UNIT REVISION'}</span>
-                      <span className="text-indigo-400 font-bold flex items-center space-x-1 group-hover:translate-x-0.5 transition-transform">
-                        <span>Open</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ======================================================== */}
-      {/* 15ForTeen STYLE INFOGRAPHIC CHEATSHEET CONTAINER */}
-      {/* ======================================================== */}
-      {!loading && cheatsheet && (
-        <div
-          id="cheatsheet-infographic-root"
-          className={`rounded-3xl p-6 sm:p-10 shadow-2xl transition-all border ${
-            isPaper
-              ? 'bg-[#ffffff] text-slate-900 border-slate-300'
-              : 'bg-[#0b0f19] text-slate-100 border-white/10'
-          }`}
-        >
-          {/* Demo Mode Banner */}
-          {cheatsheet.isDemo && (
-            <div className="mb-6 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-bold uppercase text-[10px]">Demo Data</span>
-              <span>Cheatsheet generated in offline demo mode. Saving is disabled.</span>
-            </div>
-          )}
-
-          {/* ======================================================== */}
-          {/* HEADER SECTION */}
-          {/* ======================================================== */}
-          <div className={`pb-6 mb-8 border-b ${isPaper ? 'border-slate-300' : 'border-white/10'} space-y-4`}>
-            
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
-                <span className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-black uppercase tracking-wider ${
-                  isPaper ? 'bg-indigo-100 text-indigo-800' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                }`}>
-                  {cheatsheet.unitNumber || 'UNIT REVISION'}
-                </span>
-                <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase ${
-                  isPaper ? 'bg-slate-100 text-slate-700' : 'bg-white/10 text-slate-300'
-                }`}>
-                  {cheatsheet.topicDomain || 'General'}
-                </span>
-              </div>
-
-              <div className="text-[11px] font-mono text-slate-400">
-                1-PAGE HIGH YIELD REVISION MATRIX
-              </div>
-            </div>
-
-            <div>
-              <h1 className={`text-2xl sm:text-4xl font-black tracking-tight ${
-                isPaper ? 'text-slate-950' : 'text-white'
-              }`}>
-                {cheatsheet.title || activeTopic}
-              </h1>
-              {cheatsheet.subtitle && (
-                <p className={`text-xs sm:text-sm font-semibold mt-1 ${
-                  isPaper ? 'text-indigo-700' : 'text-indigo-400'
-                }`}>
-                  {cheatsheet.subtitle}
-                </p>
-              )}
-            </div>
-
-            {/* Topic Overview Synthesis */}
-            {cheatsheet.overview && (
-              <div className={`p-4 rounded-2xl border text-xs sm:text-sm leading-relaxed ${
-                isPaper
-                  ? 'bg-slate-50 border-slate-200 text-slate-700'
-                  : 'bg-white/[0.02] border-white/5 text-slate-300'
-              }`}>
-                <span className="font-bold text-indigo-500 mr-1.5">Overview:</span>
-                <MarkdownRenderer content={cheatsheet.overview} theme={isPaper ? 'paper' : 'dark'} compact={true} />
-              </div>
-            )}
-
-          </div>
-
-          {/* ======================================================== */}
-          {/* CARDS GRID: 2-COLUMN STRUCTURED STUDY UNITS */}
-          {/* ======================================================== */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-            {cardsToRender.map((card, idx) => {
-              const colorTheme = BADGE_COLORS[idx % BADGE_COLORS.length];
-
-              return (
-                <div
-                  key={idx}
-                  className={`rounded-2xl p-5 border transition-all flex flex-col justify-between space-y-4 shadow-sm ${
-                    isPaper
-                      ? `${colorTheme.lightBg} ${colorTheme.lightBorder} text-slate-900`
-                      : `bg-[#0d1322] ${colorTheme.border} text-slate-200`
+                {/* Level Select */}
+                <select
+                  value={activeLevel}
+                  onChange={(e) => {
+                    setActiveLevel(e.target.value);
+                    if (cheatsheet) handleGenerate(activeTopic, e.target.value, activeLanguage);
+                  }}
+                  className={`px-3 py-3 rounded-xl text-xs font-bold border transition-all ${
+                    isPaper ? 'bg-slate-50 border-slate-300 text-slate-800' : 'bg-slate-950 border-white/10 text-slate-200'
                   }`}
                 >
-                  {/* Card Header */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center ${
-                          isPaper ? 'bg-slate-900 text-white' : 'bg-white/10 text-white'
-                        }`}>
-                          {card.number || idx + 1}
-                        </span>
-                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                          isPaper ? colorTheme.lightHeader : colorTheme.badge
-                        }`}>
-                          {card.categoryType || 'Concept'}
-                        </span>
-                      </div>
-                    </div>
+                  <option value="Beginner">Beginner Level</option>
+                  <option value="Intermediate">Intermediate Level</option>
+                  <option value="Advanced">Advanced Level</option>
+                </select>
 
-                    <h3 className={`text-base font-black tracking-tight leading-snug ${
-                      isPaper ? colorTheme.lightHeader : 'text-white'
-                    }`}>
-                      {card.title}
-                    </h3>
+                {/* Language Toggle */}
+                <div
+                  className={`flex items-center p-1 rounded-xl border ${
+                    isPaper ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-white/10'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveLanguage('english');
+                      if (cheatsheet) handleGenerate(activeTopic, activeLevel, 'english');
+                    }}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                      activeLanguage === 'english'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveLanguage('hinglish');
+                      if (cheatsheet) handleGenerate(activeTopic, activeLevel, 'hinglish');
+                    }}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                      activeLanguage === 'hinglish'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Generate explanations in conversational Hinglish"
+                  >
+                    🇮🇳 Hinglish
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !customInput.trim()}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs hover:opacity-95 transition-all shadow-md flex items-center justify-center space-x-2 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Generate</span>
+                </button>
+              </div>
+
+              {/* Preset Subjects Pills */}
+              <div className="pt-2 border-t border-white/5 flex items-center space-x-2 flex-wrap gap-y-2">
+                <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center space-x-1">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Popular Subjects:</span>
+                </span>
+                {PRESET_TOPICS.map((p, idx) => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSelectPreset(p.label, p.level)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center space-x-1.5 transition-all ${
+                        isPaper
+                          ? 'bg-slate-100 hover:bg-indigo-50 border-slate-300 text-slate-700 hover:text-indigo-900'
+                          : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <Icon className="w-3 h-3 text-purple-400" />
+                      <span>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div
+            className={`p-12 rounded-3xl border flex flex-col items-center justify-center text-center space-y-4 shadow-xl ${
+              isPaper ? 'bg-white border-slate-300' : 'bg-slate-900/60 border-white/10'
+            }`}
+          >
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-4 border-purple-500/20 border-t-purple-500 animate-spin" />
+              <Sparkles className="w-6 h-6 text-purple-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <div>
+              <h3 className={`text-base font-bold ${isPaper ? 'text-slate-900' : 'text-white'}`}>
+                Generating Domain-Calibrated Cheatsheet
+              </h3>
+              <p className="text-xs text-purple-400 font-mono mt-1 transition-all">
+                {loadingStages[loadingStage]}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!loading && error && (
+          <div className="p-6 rounded-3xl bg-rose-500/10 border border-rose-500/30 text-rose-300 space-y-3">
+            <div className="flex items-center space-x-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+              <h3 className="text-sm font-bold">Failed to Generate Cheatsheet</h3>
+            </div>
+            <p className="text-xs leading-relaxed">{error}</p>
+            <button
+              onClick={() => handleGenerate(activeTopic, activeLevel, activeLanguage, true)}
+              type="button"
+              className="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition-colors inline-flex items-center space-x-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Generation</span>
+            </button>
+          </div>
+        )}
+
+        {/* Main Cheatsheet Content */}
+        {!loading && !error && cheatsheet && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className={`p-6 sm:p-10 rounded-3xl border shadow-xl transition-colors ${
+              isPaper
+                ? 'bg-white border-slate-300 text-slate-900'
+                : 'bg-slate-900/40 border-white/10 text-slate-100'
+            }`}
+          >
+            {/* Cheatsheet Header */}
+            <div className="border-b pb-6 mb-8 border-slate-200 dark:border-white/10">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1 mb-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border uppercase tracking-wider ${domainInfo.bg}`}>
+                      {domainInfo.label}
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        isPaper ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-white/5 text-slate-300 border-white/10'
+                      }`}
+                    >
+                      {activeLevel} Level
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                        activeLanguage === 'hinglish'
+                          ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                          : 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+                      }`}
+                    >
+                      {activeLanguage === 'hinglish' ? '🇮🇳 Hinglish Mode' : 'English'}
+                    </span>
                   </div>
 
-                  {/* Card Definition */}
-                  {card.definition && (
-                    <div className={`text-xs leading-relaxed ${isPaper ? 'text-slate-800' : 'text-slate-300'}`}>
-                      <MarkdownRenderer content={card.definition} theme={isPaper ? 'paper' : 'dark'} compact={true} />
-                    </div>
-                  )}
+                  <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isPaper ? 'text-slate-950' : 'text-white'}`}>
+                    {cheatsheet.title || activeTopic}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium">
+                    {cheatsheet.subtitle || `High-Yield ${domainInfo.label} Revision Blueprint`}
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                  {/* Bullet Sub-points */}
-                  {card.bulletPoints && card.bulletPoints.length > 0 && (
-                    <ul className={`space-y-1.5 text-xs ${isPaper ? 'text-slate-700' : 'text-slate-300'}`}>
-                      {card.bulletPoints.map((bullet, bIdx) => (
-                        <li key={bIdx} className="flex items-start space-x-2">
-                          <span className={`font-bold mt-0.5 shrink-0 ${isPaper ? 'text-indigo-600' : 'text-indigo-400'}`}>•</span>
-                          <span className="leading-snug">
-                            <MarkdownRenderer content={bullet} theme={isPaper ? 'paper' : 'dark'} compact={true} />
+            {/* Block Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {blocksList.map((block, idx) => (
+                <BlockRenderer key={idx} block={block} isPaper={isPaper} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Empty Standalone State: Saved Cheatsheets Collection */}
+        {!loading && !cheatsheet && (
+          <div className="space-y-6 print:hidden">
+            <div className="flex items-center justify-between">
+              <h3 className={`text-base font-bold flex items-center space-x-2 ${isPaper ? 'text-slate-900' : 'text-white'}`}>
+                <Layers className="w-4 h-4 text-purple-400" />
+                <span>Your Saved Cheatsheets</span>
+              </h3>
+              <span className="text-xs text-slate-400">
+                {savedCheatsheets.length} sheet{savedCheatsheets.length === 1 ? '' : 's'} saved
+              </span>
+            </div>
+
+            {loadingSaved ? (
+              <div className="p-8 text-center text-xs text-slate-400 font-mono">
+                Loading saved collection...
+              </div>
+            ) : savedCheatsheets.length === 0 ? (
+              <div
+                className={`p-10 rounded-3xl border text-center space-y-3 ${
+                  isPaper ? 'bg-white border-slate-200' : 'bg-slate-900/30 border-white/5'
+                }`}
+              >
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <h4 className={`text-sm font-bold ${isPaper ? 'text-slate-900' : 'text-white'}`}>
+                  No Cheatsheets Saved Yet
+                </h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Search any topic above or click one of the popular subjects to generate and save your first revision guide.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {savedCheatsheets.map((item) => {
+                  const itemDomain = DOMAIN_BADGES[item.domain] || DOMAIN_BADGES.general;
+                  return (
+                    <div
+                      key={item._id}
+                      onClick={() => handleLoadSaved(item)}
+                      className={`p-5 rounded-2xl border transition-all cursor-pointer group hover:scale-[1.01] flex flex-col justify-between ${
+                        isPaper
+                          ? 'bg-white border-slate-300 hover:border-indigo-500 shadow-sm'
+                          : 'bg-slate-900/50 border-white/10 hover:border-purple-500/50'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${itemDomain.bg}`}>
+                            {itemDomain.label}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteSaved(e, item._id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title="Delete cheatsheet"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <h4 className={`text-sm font-bold group-hover:text-purple-400 transition-colors line-clamp-1 ${isPaper ? 'text-slate-900' : 'text-white'}`}>
+                          {item.lessonTitle || item.title || item.topicKey}
+                        </h4>
+                        <p className="text-xs text-slate-400 line-clamp-2">
+                          {item.subtitle || `Comprehensive ${itemDomain.label} revision`}
+                        </p>
+                      </div>
 
-                  {/* Mathematical Formula */}
-                  {card.formula && (
-                    <div className={`p-3 rounded-xl font-mono text-xs border ${
-                      isPaper ? 'bg-white border-slate-300 text-slate-900' : 'bg-black/40 border-white/10 text-cyan-300'
-                    }`}>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase mb-1">Mathematical Relation:</span>
-                      <MarkdownRenderer content={`$$${card.formula}$$`} theme={isPaper ? 'paper' : 'dark'} compact={true} />
-                    </div>
-                  )}
-
-                  {/* Code Snippet */}
-                  {card.codeSnippet && (
-                    <div className="rounded-xl overflow-hidden text-xs">
-                      <MarkdownRenderer content={`\`\`\`${card.codeLanguage || ''}\n${card.codeSnippet}\n\`\`\``} theme={isPaper ? 'paper' : 'dark'} />
-                    </div>
-                  )}
-
-                  {/* Concrete Everyday Real-World Example */}
-                  {card.example && (
-                    <div className={`p-3 rounded-xl text-xs border flex items-start space-x-2.5 ${
-                      isPaper ? 'bg-amber-50/80 border-amber-300 text-amber-950' : 'bg-amber-500/10 border-amber-500/20 text-amber-200'
-                    }`}>
-                      <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold text-[10px] uppercase block tracking-wider">Intuitive Example:</span>
-                        <span className="leading-snug">{card.example}</span>
+                      <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>{item.level || 'Beginner'}</span>
+                        <span className="font-mono text-purple-400 group-hover:translate-x-1 transition-transform">
+                          Open →
+                        </span>
                       </div>
                     </div>
-                  )}
-
-                  {/* Visual Diagram / ASCII Curve */}
-                  {card.visualDiagram && (
-                    <div className={`p-3 rounded-xl border font-mono text-[10px] sm:text-xs overflow-x-auto whitespace-pre leading-tight ${
-                      isPaper ? 'bg-slate-900 text-emerald-400 border-slate-700' : 'bg-black/60 text-emerald-300 border-white/10'
-                    }`}>
-                      {card.visualDiagram}
-                    </div>
-                  )}
-
-                  {/* Exam Trap / Topper Tip */}
-                  {card.examTip && (
-                    <div className={`p-3 rounded-xl text-xs border flex items-start space-x-2 ${
-                      isPaper ? 'bg-rose-50 border-rose-300 text-rose-950' : 'bg-rose-500/10 border-rose-500/20 text-rose-200'
-                    }`}>
-                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                      <div className="leading-snug">
-                        <span className="font-bold text-[10px] uppercase block tracking-wider">Exam Alert / Trap:</span>
-                        <span>{card.examTip}</span>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ======================================================== */}
-          {/* COMPARISON MATRIX / PARADIGM TABLE */}
-          {/* ======================================================== */}
-          {cheatsheet.comparisonTable && cheatsheet.comparisonTable.headers && cheatsheet.comparisonTable.headers.length > 0 && (
-            <div className={`rounded-2xl p-6 mb-8 border ${
-              isPaper ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0d1322] border-white/10 text-slate-100'
-            }`}>
-              <div className="flex items-center space-x-2 mb-4">
-                <Table className="w-4 h-4 text-indigo-500" />
-                <h3 className="text-sm font-black uppercase tracking-wider">
-                  {cheatsheet.comparisonTable.title || 'Core Paradigm Comparison Table'}
-                </h3>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className={`border-b ${isPaper ? 'border-slate-300 bg-slate-200/70 text-slate-900' : 'border-white/10 bg-white/5 text-white'}`}>
-                      {cheatsheet.comparisonTable.headers.map((h, hIdx) => (
-                        <th key={hIdx} className="p-3 font-black uppercase text-[11px] tracking-wider">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${isPaper ? 'divide-slate-200' : 'divide-white/5'}`}>
-                    {(cheatsheet.comparisonTable.rows || []).map((row, rIdx) => (
-                      <tr key={rIdx} className={isPaper ? 'hover:bg-slate-100' : 'hover:bg-white/[0.02]'}>
-                        <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">
-                          {row.type || row.col1 || 'Concept'}
-                        </td>
-                        <td className="p-3 leading-relaxed">
-                          {row.definition || row.col2 || '-'}
-                        </td>
-                        <td className="p-3 leading-relaxed">
-                          {row.example || row.col3 || '-'}
-                        </td>
-                        <td className="p-3 font-medium">
-                          {row.use || row.col4 || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ======================================================== */}
-          {/* QUICK REVISION POINTS & EXAM QUESTIONS */}
-          {/* ======================================================== */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-            
-            {/* Quick Revision Checkpoints */}
-            {cheatsheet.quickRevisionPoints && cheatsheet.quickRevisionPoints.length > 0 && (
-              <div className={`rounded-2xl p-5 border ${
-                isPaper ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950' : 'bg-[#0d1322] border-emerald-500/30 text-slate-200'
-              }`}>
-                <h3 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-3 flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>High-Yield Revision Checklist</span>
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  {cheatsheet.quickRevisionPoints.map((pt, pIdx) => (
-                    <div key={pIdx} className="flex items-start space-x-2">
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">✓</span>
-                      <span className="leading-snug">{pt}</span>
-                    </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             )}
-
-            {/* Important Exam / University Questions */}
-            {cheatsheet.examPoints && cheatsheet.examPoints.length > 0 && (
-              <div className={`rounded-2xl p-5 border ${
-                isPaper ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950' : 'bg-[#0d1322] border-indigo-500/30 text-slate-200'
-              }`}>
-                <h3 className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3 flex items-center space-x-1.5">
-                  <Star className="w-4 h-4 fill-current" />
-                  <span>Important Exam & Interview Questions</span>
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  {cheatsheet.examPoints.map((eq, eIdx) => (
-                    <div key={eIdx} className="flex items-start space-x-2">
-                      <span className="text-indigo-500 shrink-0 font-bold">•</span>
-                      <span className="leading-snug">{eq}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
           </div>
-
-          {/* ======================================================== */}
-          {/* TOPPER'S TIP FOOTER BANNER */}
-          {/* ======================================================== */}
-          <div className="rounded-2xl p-4 bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-950 border border-indigo-500/30 text-white flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left shadow-lg">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow">
-                <GraduationCap className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider block">
-                  Topper's Revision Strategy
-                </span>
-                <span className="text-xs sm:text-sm font-black tracking-wide">
-                  {cheatsheet.topperTip || 'Understand Concepts ➔ Practice Examples ➔ Write Definitions ➔ Revise Regularly'}
-                </span>
-              </div>
-            </div>
-
-            <div className="text-[11px] font-mono text-indigo-300 font-bold px-3 py-1 rounded-lg bg-black/40 border border-white/10 shrink-0">
-              PadhAI AI-Engine
-            </div>
-          </div>
-
-        </div>
-      )}
-
+        )}
+      </div>
     </div>
   );
 };

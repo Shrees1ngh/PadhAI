@@ -176,6 +176,10 @@ export const fetchSavedCheatsheets = async () => {
   return await api.get('/cheatsheets/saved');
 };
 
+export const deleteSavedCheatsheet = async (id) => {
+  return await api.delete(`/cheatsheets/${id}`);
+};
+
 // ==================================
 // FLASHCARDS API SERVICES
 // ==================================

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Cheatsheet from "./cheatsheet.model.js";
+import Cheatsheet, { CheatsheetCache } from "./cheatsheet.model.js";
 import {
   generateCheatsheetInputSchema,
   saveCheatsheetInputSchema,
@@ -8,7 +8,7 @@ import { generateCheatsheetWithGemini } from "../../lib/cheatsheet.service.js";
 import { getDbStatus } from "../../config/db.js";
 
 /**
- * Generate a high-yield revision cheatsheet using Gemini
+ * Generate a high-yield domain-adaptive revision cheatsheet
  * POST /api/cheatsheets/generate
  */
 export const generateCheatsheetHandler = async (req, res) => {
@@ -20,25 +20,85 @@ export const generateCheatsheetHandler = async (req, res) => {
       apiKey,
     });
 
+    const rawTopic = validatedInput.topic || validatedInput.lessonTitle;
+    const topicKey = rawTopic.toLowerCase().trim();
+    const level = validatedInput.currentLevel || "Beginner";
+    const language = validatedInput.language || "english";
+    const isDbReady = mongoose.connection.readyState === 1;
+
+    // 1. Shared Cache Lookup (30-day TTL) unless regenerate is explicitly requested
+    if (!validatedInput.regenerate && isDbReady && apiKey !== "DEMO_MODE") {
+      try {
+        const cached = await CheatsheetCache.findOne({
+          topicKey,
+          level,
+          language,
+        });
+
+        if (cached && cached.cheatsheet) {
+          return res.status(200).json({
+            success: true,
+            message: "Cheatsheet loaded from shared cache",
+            cheatsheet: cached.cheatsheet,
+            cached: true,
+            metadata: {
+              courseId: validatedInput.courseId,
+              moduleIndex: validatedInput.moduleIndex,
+              lessonIndex: validatedInput.lessonIndex,
+              lessonTitle: rawTopic,
+              sourceType: validatedInput.sourceType,
+              currentLevel: level,
+              language,
+              domain: cached.domain || cached.cheatsheet?.domain || "general",
+            },
+          });
+        }
+      } catch (cacheErr) {
+        console.warn("Shared cheatsheet cache lookup warning:", cacheErr.message);
+      }
+    }
+
+    // 2. Generate with Gemini
     const cheatsheetData = await generateCheatsheetWithGemini({
-      lessonTitle: validatedInput.lessonTitle,
+      topic: rawTopic,
+      lessonTitle: rawTopic,
       lessonContent: validatedInput.lessonContent,
       courseTopic: validatedInput.courseTopic,
-      currentLevel: validatedInput.currentLevel,
+      currentLevel: level,
+      language,
       apiKey,
     });
+
+    // 3. Populate shared cache asynchronously
+    if (isDbReady && !cheatsheetData.isDemo && apiKey !== "DEMO_MODE") {
+      CheatsheetCache.findOneAndUpdate(
+        { topicKey, level, language },
+        {
+          topicKey,
+          level,
+          language,
+          domain: cheatsheetData.domain || "general",
+          cheatsheet: cheatsheetData,
+          createdAt: new Date(),
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).catch((err) => console.warn("Failed to update cheatsheet cache:", err.message));
+    }
 
     res.status(200).json({
       success: true,
       message: "Cheatsheet generated successfully",
       cheatsheet: cheatsheetData,
+      cached: false,
       metadata: {
         courseId: validatedInput.courseId,
         moduleIndex: validatedInput.moduleIndex,
         lessonIndex: validatedInput.lessonIndex,
-        lessonTitle: validatedInput.lessonTitle,
+        lessonTitle: rawTopic,
         sourceType: validatedInput.sourceType,
-        currentLevel: validatedInput.currentLevel,
+        currentLevel: level,
+        language,
+        domain: cheatsheetData.domain || "general",
       },
     });
   } catch (error) {
@@ -48,7 +108,9 @@ export const generateCheatsheetHandler = async (req, res) => {
     const status = error.status || (isZod ? 400 : 500);
     res.status(status).json({
       success: false,
-      message: isZod ? (issues[0]?.message || "Invalid input") : (error.message || "Failed to generate cheatsheet"),
+      message: isZod
+        ? issues[0]?.message || "Invalid input parameters"
+        : error.message || "Failed to generate cheatsheet",
       code: error.code || (isZod ? "VALIDATION_ERROR" : "CHEATSHEET_GENERATION_ERROR"),
       errors: issues.length ? issues : null,
     });
@@ -56,7 +118,7 @@ export const generateCheatsheetHandler = async (req, res) => {
 };
 
 /**
- * Save a cheatsheet to MongoDB
+ * Save a cheatsheet to MongoDB for authenticated user
  * POST /api/cheatsheets/save
  */
 export const saveCheatsheetHandler = async (req, res) => {
@@ -64,7 +126,7 @@ export const saveCheatsheetHandler = async (req, res) => {
     const validatedInput = saveCheatsheetInputSchema.parse(req.body);
     const isDbReady = mongoose.connection.readyState === 1;
 
-    if (req.body.isDemo || validatedInput.cheatsheet?.isDemo) {
+    if (req.body.isDemo || validatedInput.isDemo || validatedInput.cheatsheet?.isDemo) {
       return res.status(400).json({
         success: false,
         code: "DEMO_SAVE_DISABLED",
@@ -79,141 +141,75 @@ export const saveCheatsheetHandler = async (req, res) => {
       });
     }
 
-    // Check MongoDB availability — never create fake persistence
     if (!isDbReady) {
       return res.status(503).json({
         success: false,
         mongoUnavailable: true,
         message:
-          "MongoDB is currently offline. Cheatsheet was generated successfully, but cannot be persisted to the database. To enable persistence, ensure MongoDB is running or configure MONGO_URI in server/.env.",
+          "MongoDB is currently offline. Cheatsheet was generated successfully, but cannot be persisted.",
         cheatsheet: validatedInput.cheatsheet,
         dbStatus: getDbStatus(),
       });
     }
 
-    const {
-      courseId,
-      moduleIndex,
-      lessonIndex,
-      lessonTitle,
-      sourceType,
-      cheatsheet,
-    } = validatedInput;
+    const rawTopic = validatedInput.topic || validatedInput.lessonTitle;
+    const topicKey = rawTopic.toLowerCase().trim();
+    const level = validatedInput.currentLevel || validatedInput.cheatsheet?.level || "Beginner";
+    const language = validatedInput.language || validatedInput.cheatsheet?.language || "english";
+    const domain = validatedInput.domain || validatedInput.cheatsheet?.domain || "general";
+    const blocks = validatedInput.cheatsheet?.blocks || [];
 
-    const query = courseId
-      ? { courseId, moduleIndex, lessonIndex, userId: req.user.id }
-      : { lessonTitle, sourceType, userId: req.user.id };
-
-    let doc = await Cheatsheet.findOne(query);
-
-    const cheatsheetPayload = {
-      courseId,
-      moduleIndex,
-      lessonIndex,
-      lessonTitle,
-      sourceType,
-      title: cheatsheet.title || lessonTitle,
-      subtitle: cheatsheet.subtitle || "",
-      overview: cheatsheet.overview || "",
-      unitNumber: cheatsheet.unitNumber || "UNIT REVISION",
-      topicDomain: cheatsheet.topicDomain || "general",
-      cards: cheatsheet.cards || [],
-      comparisonTable: cheatsheet.comparisonTable || { title: "", headers: [], rows: [] },
-      keyConcepts: cheatsheet.keyConcepts || [],
-      definitions: cheatsheet.definitions || [],
-      importantRules: cheatsheet.importantRules || [],
-      formulas: cheatsheet.formulas || [],
-      syntaxPatterns: cheatsheet.syntaxPatterns || [],
-      examples: cheatsheet.examples || [],
-      commonMistakes: cheatsheet.commonMistakes || [],
-      quickRevisionPoints: cheatsheet.quickRevisionPoints || [],
-      examPoints: cheatsheet.examPoints || [],
-      topperTip: cheatsheet.topperTip || "",
-      userId: req.user.id,
-      userEmail: req.user.email || null,
-    };
-
-    if (!doc) {
-      doc = new Cheatsheet(cheatsheetPayload);
-    } else {
-      Object.assign(doc, cheatsheetPayload);
-    }
-
-    await doc.save();
+    const cheatsheetDoc = await Cheatsheet.findOneAndUpdate(
+      {
+        userId: req.user.id,
+        topicKey,
+        level,
+        language,
+      },
+      {
+        userId: req.user.id,
+        userEmail: req.user.email || "",
+        topicKey,
+        lessonTitle: rawTopic,
+        title: validatedInput.cheatsheet?.title || rawTopic,
+        subtitle: validatedInput.cheatsheet?.subtitle || "",
+        domain,
+        level,
+        language,
+        blocks,
+        courseId: validatedInput.courseId || "",
+        moduleIndex: validatedInput.moduleIndex || 0,
+        lessonIndex: validatedInput.lessonIndex || 0,
+        sourceType: validatedInput.sourceType || "standalone",
+        isDemo: false,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     res.status(200).json({
       success: true,
-      message: "Cheatsheet saved to database",
-      cheatsheet: doc,
+      message: "Cheatsheet saved successfully to your collection",
+      cheatsheetId: cheatsheetDoc._id,
+      cheatsheet: cheatsheetDoc,
     });
   } catch (error) {
     console.error("Error in saveCheatsheetHandler:", error.message);
     const isZod = error.name === "ZodError" || Boolean(error.issues);
     const issues = error.issues || error.errors || [];
-    const status = isZod ? 400 : (error.status || 500);
-    res.status(status).json({
+    res.status(isZod ? 400 : 500).json({
       success: false,
-      message: isZod ? (issues[0]?.message || "Invalid input for saving cheatsheet") : (error.message || "Failed to save cheatsheet"),
+      message: isZod
+        ? issues[0]?.message || "Invalid cheatsheet save data"
+        : error.message || "Failed to save cheatsheet",
+      code: isZod ? "VALIDATION_ERROR" : "CHEATSHEET_SAVE_ERROR",
       errors: issues.length ? issues : null,
     });
   }
 };
 
 /**
- * Retrieve saved cheatsheet for a lesson from MongoDB
- * GET /api/cheatsheets/:courseId/:moduleIndex/:lessonIndex
- */
-export const getLessonCheatsheetHandler = async (req, res) => {
-  try {
-    const isDbReady = mongoose.connection.readyState === 1;
-
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required to view cheatsheet.",
-      });
-    }
-
-    if (!isDbReady) {
-      return res.status(503).json({
-        success: false,
-        mongoUnavailable: true,
-        message: "MongoDB is offline. Cannot query stored cheatsheet.",
-      });
-    }
-
-    const { courseId, moduleIndex, lessonIndex } = req.params;
-
-    const doc = await Cheatsheet.findOne({
-      courseId,
-      moduleIndex: parseInt(moduleIndex, 10),
-      lessonIndex: parseInt(lessonIndex, 10),
-      userId: req.user.id,
-    });
-
-    if (!doc) {
-      return res.status(404).json({
-        success: false,
-        message: "No saved cheatsheet found for this lesson in database",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      cheatsheet: doc,
-    });
-  } catch (error) {
-    console.error("Error in getLessonCheatsheetHandler:", error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error retrieving cheatsheet",
-    });
-  }
-};
-
-/**
- * Retrieve all saved cheatsheets for the authenticated user
- * GET /api/cheatsheets/saved
+ * Retrieve all saved cheatsheets for authenticated user
+ * GET /api/cheatsheets/mine (and GET /api/cheatsheets/saved)
  */
 export const getSavedCheatsheetsHandler = async (req, res) => {
   try {
@@ -222,7 +218,7 @@ export const getSavedCheatsheetsHandler = async (req, res) => {
     if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required to fetch saved cheatsheets.",
+        message: "Authentication required to fetch your cheatsheets.",
       });
     }
 
@@ -231,25 +227,116 @@ export const getSavedCheatsheetsHandler = async (req, res) => {
         success: true,
         cheatsheets: [],
         mongoUnavailable: true,
-        message: "MongoDB is offline. Cannot query stored cheatsheets.",
+        message: "Database is currently offline. Saved cheatsheets are unavailable.",
       });
     }
 
-    const docs = await Cheatsheet.find({ userId: req.user.id })
+    const cheatsheets = await Cheatsheet.find({ userId: req.user.id })
       .sort({ updatedAt: -1 })
-      .limit(50)
-      .lean();
+      .limit(100);
 
     res.status(200).json({
       success: true,
-      cheatsheets: docs || [],
+      cheatsheets,
+      count: cheatsheets.length,
     });
   } catch (error) {
     console.error("Error in getSavedCheatsheetsHandler:", error.message);
     res.status(500).json({
       success: false,
-      message: error.message || "Failed to retrieve saved cheatsheets",
-      cheatsheets: [],
+      message: error.message || "Failed to retrieve saved cheatsheets.",
+    });
+  }
+};
+
+/**
+ * Delete a saved cheatsheet by ID
+ * DELETE /api/cheatsheets/:id
+ */
+export const deleteCheatsheetHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to delete cheatsheet.",
+      });
+    }
+
+    if (!isDbReady) {
+      return res.status(503).json({
+        success: false,
+        message: "Database is currently offline.",
+      });
+    }
+
+    const deleted = await Cheatsheet.findOneAndDelete({
+      _id: id,
+      userId: req.user.id,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Cheatsheet not found or you do not have permission to delete it.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Cheatsheet deleted successfully.",
+      deletedId: id,
+    });
+  } catch (error) {
+    console.error("Error in deleteCheatsheetHandler:", error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to delete cheatsheet.",
+    });
+  }
+};
+
+/**
+ * Retrieve cheatsheet for specific course lesson
+ * GET /api/cheatsheets/:courseId/:moduleIndex/:lessonIndex
+ */
+export const getLessonCheatsheetHandler = async (req, res) => {
+  try {
+    const { courseId, moduleIndex, lessonIndex } = req.params;
+    const isDbReady = mongoose.connection.readyState === 1;
+
+    if (!isDbReady) {
+      return res.status(404).json({
+        success: false,
+        message: "No persisted cheatsheet found (database offline).",
+      });
+    }
+
+    const cheatsheet = await Cheatsheet.findOne({
+      userId: req.user.id,
+      courseId,
+      moduleIndex: Number(moduleIndex),
+      lessonIndex: Number(lessonIndex),
+    });
+
+    if (!cheatsheet) {
+      return res.status(404).json({
+        success: false,
+        message: "No saved cheatsheet found for this lesson.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      cheatsheet,
+    });
+  } catch (error) {
+    console.error("Error in getLessonCheatsheetHandler:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve lesson cheatsheet.",
     });
   }
 };
