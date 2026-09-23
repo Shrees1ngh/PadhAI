@@ -1,0 +1,266 @@
+@import "tailwindcss";
+
+/* =========================================================================
+   Tailwind v4 @theme — Override built-in palettes to GitHub dark colors
+   This remaps cyan/indigo/purple/slate to GitHub-style neutral + blue values
+   ========================================================================= */
+@theme {
+  /* Remap indigo → GitHub blue */
+  --color-indigo-50:  #f0f6ff;
+  --color-indigo-100: #dbeafe;
+  --color-indigo-200: #bfdbfe;
+  --color-indigo-300: #93c5fd;
+  --color-indigo-400: #58a6ff;
+  --color-indigo-500: #388bfd;
+  --color-indigo-600: #1f6feb;
+  --color-indigo-700: #1a56c4;
+  --color-indigo-800: #1240a0;
+  --color-indigo-900: #0d2d78;
+  --color-indigo-950: #081b4a;
+
+  /* Remap cyan → GitHub blue-ish (not neon) */
+  --color-cyan-50:  #f0f9ff;
+  --color-cyan-100: #e0f2fe;
+  --color-cyan-200: #bae6fd;
+  --color-cyan-300: #7dd3fc;
+  --color-cyan-400: #58a6ff;
+  --color-cyan-500: #388bfd;
+  --color-cyan-600: #1f6feb;
+  --color-cyan-700: #1a56c4;
+  --color-cyan-800: #1240a0;
+  --color-cyan-900: #0d2d78;
+  --color-cyan-950: #081b4a;
+
+  /* Remap purple → GitHub muted blue-gray */
+  --color-purple-50:  #f5f5f5;
+  --color-purple-100: #ebebeb;
+  --color-purple-200: #d6d6d6;
+  --color-purple-300: #adadad;
+  --color-purple-400: #858585;
+  --color-purple-500: #636363;
+  --color-purple-600: #404040;
+  --color-purple-700: #2e2e2e;
+  --color-purple-800: #1c1c1c;
+  --color-purple-900: #0d0d0d;
+  --color-purple-950: #080808;
+
+  /* Remap slate → GitHub fg colors */
+  --color-slate-50:  #f0f6fc;
+  --color-slate-100: #e6edf3;
+  --color-slate-200: #c9d1d9;
+  --color-slate-300: #b1bac4;
+  --color-slate-400: #8b949e;
+  --color-slate-500: #6e7681;
+  --color-slate-600: #484f58;
+  --color-slate-700: #30363d;
+  --color-slate-800: #21262d;
+  --color-slate-900: #161b22;
+  --color-slate-950: #0d1117;
+
+  /* Remap violet → same as indigo */
+  --color-violet-400: #58a6ff;
+  --color-violet-500: #388bfd;
+  --color-violet-600: #1f6feb;
+  --color-violet-700: #1a56c4;
+
+  /* Remap rose/emerald just in case */
+  --color-rose-400: #f85149;
+  --color-rose-500: #da3633;
+  --color-emerald-400: #3fb950;
+  --color-emerald-500: #2ea043;
+
+  /* GitHub canvas backgrounds for bg-[#...] patterns */
+  --color-canvas-default:   #0d1117;
+  --color-canvas-subtle:    #161b22;
+  --color-border-default:   #30363d;
+  --color-border-muted:     #21262d;
+  --color-accent-fg:        #58a6ff;
+  --color-accent-emphasis:  #1f6feb;
+}
+
+/* =========================================================================
+   Base Styles
+   ========================================================================= */
+@layer base {
+  :root {
+    --font-sans: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
+    --font-heading: 'Outfit', 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #0d1117 !important;
+    color: #e6edf3;
+    overflow-x: hidden;
+    min-width: 320px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+    color: #e6edf3;
+  }
+
+  :focus-visible {
+    outline: 2px solid #58a6ff;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: rgba(88, 166, 255, 0.25);
+    color: #e6edf3;
+  }
+}
+
+/* =========================================================================
+   Force GitHub canvas on all old dark backgrounds
+   (Catches any hardcoded bg-[#080c14], bg-[#0d1322] etc. that weren't changed)
+   ========================================================================= */
+
+/* Global override: make all very-dark backgrounds consistent */
+[class*="bg-[#080c14]"],
+[class*="bg-[#0b0f19]"],
+[class*="bg-[#080d1a]"],
+[class*="bg-[#020617]"],
+[class*="bg-[#010409]"] {
+  background-color: #0d1117 !important;
+}
+
+[class*="bg-[#0d1322]"],
+[class*="bg-[#111827]"],
+[class*="bg-[#0e1424]"],
+[class*="bg-[#121a30]"],
+[class*="bg-[#0d1117]"] {
+  background-color: #0d1117 !important;
+}
+
+/* Force card backgrounds */
+[class*="bg-[#0f172a]"],
+[class*="bg-[#1e293b]"] {
+  background-color: #161b22 !important;
+}
+
+/* =========================================================================
+   GitHub-style Utility Classes
+   ========================================================================= */
+
+.gh-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+}
+
+.gh-card-hover {
+  transition: border-color 0.2s ease;
+}
+.gh-card-hover:hover {
+  border-color: #58a6ff;
+}
+
+.gh-btn-primary {
+  background-color: #1f6feb;
+  color: #ffffff;
+  border: 1px solid rgba(240, 246, 252, 0.1);
+  border-radius: 6px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.gh-btn-primary:hover {
+  background-color: #388bfd;
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+}
+
+.gh-btn-secondary {
+  background-color: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.gh-btn-secondary:hover {
+  background-color: #21262d;
+  border-color: #8b949e;
+}
+
+/* Legacy compat */
+.glass-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+}
+.glass-card-hover { transition: border-color 0.2s ease; }
+.glass-card-hover:hover { border-color: #58a6ff; }
+
+/* Remove old glow classes */
+.glow-purple, .glow-cyan { box-shadow: none !important; }
+.glow-blue { box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.25); }
+
+/* =========================================================================
+   Scrollbar
+   ========================================================================= */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: #0d1117; }
+::-webkit-scrollbar-thumb  { background: #30363d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+
+/* =========================================================================
+   Mermaid — GitHub theme
+   ========================================================================= */
+.mermaid-container svg {
+  max-width: 100% !important;
+  height: auto !important;
+  font-family: var(--font-sans) !important;
+}
+
+.mermaid-paper svg .node rect,
+.mermaid-paper svg .node circle,
+.mermaid-paper svg .node polygon,
+.mermaid-paper svg .node path {
+  fill: #ffffff !important;
+  stroke: #1f6feb !important;
+  stroke-width: 1.5px !important;
+  rx: 6px !important; ry: 6px !important;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.08));
+}
+.mermaid-paper svg .node .label,
+.mermaid-paper svg .node text,
+.mermaid-paper svg text {
+  fill: #0d1117 !important; color: #0d1117 !important; font-weight: 600 !important;
+}
+.mermaid-paper svg .edgeLabel {
+  background-color: #f6f8fa !important; border: 1px solid #d0d7de !important;
+  border-radius: 4px !important; padding: 2px 8px !important;
+  color: #24292f !important; font-size: 11px !important; font-weight: 500 !important;
+}
+.mermaid-paper svg .edgePath path.path { stroke: #57606a !important; stroke-width: 1.5px !important; }
+.mermaid-paper svg marker path { fill: #57606a !important; stroke: #57606a !important; }
+
+.mermaid-dark svg .node rect,
+.mermaid-dark svg .node circle,
+.mermaid-dark svg .node polygon,
+.mermaid-dark svg .node path {
+  fill: #161b22 !important;
+  stroke: #58a6ff !important;
+  stroke-width: 1.5px !important;
+  rx: 6px !important; ry: 6px !important;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+.mermaid-dark svg .node .label,
+.mermaid-dark svg .node text,
+.mermaid-dark svg text {
+  fill: #e6edf3 !important; color: #e6edf3 !important; font-weight: 600 !important;
+}
+.mermaid-dark svg .edgeLabel {
+  background-color: #0d1117 !important; border: 1px solid #30363d !important;
+  border-radius: 4px !important; padding: 2px 8px !important;
+  color: #8b949e !important; font-size: 11px !important; font-weight: 500 !important;
+}
+.mermaid-dark svg .edgePath path.path { stroke: #58a6ff !important; stroke-width: 1.5px !important; }
+.mermaid-dark svg marker path { fill: #58a6ff !important; stroke: #58a6ff !important; }
