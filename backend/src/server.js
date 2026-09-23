@@ -146,20 +146,21 @@ app.use((err, req, res, next) => {
 });
 
 // Start Server & Connect Database
-const startServer = async () => {
-  try {
-    await connectDB();
-  } catch (err) {
-    console.warn("DB initialization non-fatal error:", err.message);
-  }
-
-  app.listen(ENV.PORT, () => {
+const startServer = () => {
+  const server = app.listen(ENV.PORT, "0.0.0.0", () => {
     console.log(`\n=================================================`);
     console.log(`🚀 PadhAI Server running on http://localhost:${ENV.PORT}`);
     console.log(`🩺 Health Check: http://localhost:${ENV.PORT}/api/health`);
     console.log(`🌐 Allowed Client: ${ENV.CLIENT_URL}`);
     console.log(`=================================================\n`);
   });
+
+  // Connect to DB asynchronously so HTTP routes and health checks are available immediately
+  connectDB().catch((err) => {
+    console.warn("DB initialization non-fatal error:", err.message);
+  });
+
+  return server;
 };
 
 startServer();

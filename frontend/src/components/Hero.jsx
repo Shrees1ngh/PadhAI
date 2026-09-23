@@ -83,7 +83,7 @@ export const Hero = ({
 
       {/* Main Learning Search Hub Section */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 sm:space-y-8 relative z-10">
-        
+
         {/* Brand Badge */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -96,7 +96,6 @@ export const Hero = ({
           <span className="font-medium text-[#e6edf3]">Padh<span className="text-[#58a6ff]">AI</span> for Developers</span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]" />
         </motion.div>
-
         {/* Hero Title */}
         <div className="space-y-3">
           <motion.h1
