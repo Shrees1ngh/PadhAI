@@ -10,6 +10,7 @@ try {
 }
 
 let isConnected = false;
+let reconnectTimeout = null;
 
 export const getDbStatus = () => {
   const states = ["disconnected", "connected", "connecting", "disconnecting"];
@@ -18,6 +19,20 @@ export const getDbStatus = () => {
 
 export const isDbReady = () => {
   return mongoose.connection.readyState === 1;
+};
+
+const scheduleReconnect = (delayMs = 10000) => {
+  if (reconnectTimeout) return;
+  reconnectTimeout = setTimeout(async () => {
+    reconnectTimeout = null;
+    if (mongoose.connection.readyState === 0) {
+      console.log("🔄 Retrying MongoDB connection in background...");
+      await connectDB();
+    }
+  }, delayMs);
+  if (reconnectTimeout?.unref) {
+    reconnectTimeout.unref();
+  }
 };
 
 export const connectDB = async () => {
@@ -38,26 +53,37 @@ export const connectDB = async () => {
       connectTimeoutMS: 5000,
     });
     isConnected = true;
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
     console.log(`✅ MongoDB Connected successfully: ${conn.connection.host}`);
     return true;
   } catch (error) {
     isConnected = false;
     console.warn(`⚠️  MongoDB Connection Warning: ${error.message}`);
     if (error.message && error.message.includes("whitelist")) {
-      console.warn(`👉 Atlas IP Whitelist required: Ensure your IP address is whitelisted in MongoDB Atlas.`);
+      console.warn(`👉 Atlas IP Whitelist required: Add your current IP (or 0.0.0.0/0) in MongoDB Atlas -> Network Access.`);
     }
+    // Schedule background retry so it automatically connects when IP is whitelisted or network recovers
+    scheduleReconnect(10000);
     return false;
   }
 };
 
 mongoose.connection.on("connected", () => {
   isConnected = true;
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
   console.log("📡 MongoDB connection established.");
 });
 
 mongoose.connection.on("disconnected", () => {
   isConnected = false;
   console.warn("⚠️  MongoDB connection disconnected.");
+  scheduleReconnect(10000);
 });
 
 
