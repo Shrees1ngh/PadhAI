@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Sparkles, X, MessageSquare } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Sparkles, X, MessageSquare } from 'lucide-react';
 import AITutorDrawer from './AITutorDrawer';
 
 export const GlobalAITutorButton = ({
@@ -15,32 +15,32 @@ export const GlobalAITutorButton = ({
 
   return (
     <>
-      {/* Floating Bottom-Right AI Tutor Logo Button (Borderless Pure Floating Avatar) */}
-      <div className="fixed bottom-6 right-6 z-40 flex items-center select-none">
+      {/* Floating Bottom-Right Launcher (Clean, Minimal, Non-intrusive) */}
+      <div className="fixed bottom-6 right-6 z-[9990] flex items-center select-none">
         <motion.button
-          whileHover={{ scale: 1.12, y: -4 }}
-          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(!isOpen)}
-          title="AI Tutor - Ask any doubt"
+          title="AI Tutor"
           aria-label="Open AI Tutor"
-          className="relative group w-14 h-14 sm:w-16 sm:h-16 bg-transparent border-0 outline-none p-0 flex items-center justify-center cursor-pointer transition-all duration-300"
+          className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#121620] hover:bg-[#181e2b] border border-white/15 p-1 flex items-center justify-center cursor-pointer shadow-xl transition-colors"
         >
-          {/* AI Tutor Avatar with Pure Radiant Glow */}
-          <img
-            src="/ai-tutor.png"
-            alt="AI Tutor Logo"
-            className="w-full h-full object-contain rounded-2xl filter drop-shadow-[0_0_18px_rgba(0,245,255,0.65)] group-hover:drop-shadow-[0_0_28px_rgba(0,245,255,0.95)] transition-all duration-300"
-          />
-
-          {/* Active Online Indicator Dot */}
-          <span className="absolute top-0.5 right-0.5 flex h-3.5 w-3.5 z-10 pointer-events-none">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 border-2 border-[#090d16] shadow-sm" />
-          </span>
+          {isOpen ? (
+            <X className="w-5 h-5 text-white" />
+          ) : (
+            <div className="relative w-full h-full rounded-full overflow-hidden flex items-center justify-center">
+              <img
+                src="/ai-tutor.png"
+                alt="PadhAI Tutor"
+                className="w-full h-full object-cover rounded-full"
+              />
+              <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#121620]" />
+            </div>
+          )}
         </motion.button>
       </div>
 
-      {/* Grounded AI Tutor Drawer */}
+      {/* Floating Chatbot Widget (No full-screen dark overlay) */}
       <AITutorDrawer
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

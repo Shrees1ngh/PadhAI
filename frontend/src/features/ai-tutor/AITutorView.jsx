@@ -1,5 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Sparkles, RefreshCw, User, BookOpen, Lightbulb, AlertCircle, RotateCcw, Copy, Check } from 'lucide-react';
+import {
+  Send,
+  User,
+  Lightbulb,
+  AlertCircle,
+  RotateCcw,
+  Copy,
+  Check,
+  Volume2,
+  VolumeX,
+  KeyRound
+} from 'lucide-react';
 import { chatWithAITutor } from '../../services/api';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 
@@ -8,6 +19,7 @@ const QUICK_QUESTIONS = [
   'What is the difference between BFS and DFS?',
   'How does QuickSort choose its pivot?',
   'Why is binary search O(log n)?',
+  'Explain dynamic programming with a simple analogy',
 ];
 
 export const AITutorView = () => {
@@ -15,19 +27,28 @@ export const AITutorView = () => {
     {
       role: 'assistant',
       content:
-        "Hello! I am your **24/7 PadhAI Socratic Tutor**.\n\nAsk me any Computer Science concept, algorithm breakdown, step-by-step proof, or ask me to debug your code!",
+        "Hello! I am your **PadhAI Socratic Tutor**.\n\nAsk me any Computer Science concept, algorithm breakdown, step-by-step intuition, or ask me to debug your code! Rather than giving answers upfront, I'll help you reason like a world-class engineer.",
     },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copiedIdx, setCopiedIdx] = useState(null);
+  const [speakingIdx, setSpeakingIdx] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   const handleCopy = (idx, text) => {
     if (navigator?.clipboard) {
@@ -37,11 +58,39 @@ export const AITutorView = () => {
     }
   };
 
+  const handleToggleSpeak = (idx, text) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    if (speakingIdx === idx) {
+      window.speechSynthesis.cancel();
+      setSpeakingIdx(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/[*_#\[\]()]/g, '');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.05;
+    utterance.onend = () => setSpeakingIdx(null);
+    utterance.onerror = () => setSpeakingIdx(null);
+
+    setSpeakingIdx(idx);
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleReset = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setSpeakingIdx(null);
+    }
     setMessages([
       {
         role: 'assistant',
-        content: "Chat session refreshed. What would you like to master today?",
+        content: "Chat session refreshed. What concept or problem would you like to master today?",
       },
     ]);
     setError(null);
@@ -89,106 +138,107 @@ export const AITutorView = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4 h-[calc(100vh-8.5rem)] flex flex-col select-text">
+    <div className="max-w-4xl mx-auto space-y-3.5 h-[calc(100vh-8.5rem)] flex flex-col select-text">
       
       {/* Top Header Card */}
-      <div className="rounded-2xl p-4 sm:p-5 bg-[#0d1424] border border-white/[0.08] flex items-center justify-between shadow-xl shrink-0">
-        <div className="flex items-center space-x-3.5">
-          <div className="relative shrink-0">
+      <div className="rounded-2xl p-3.5 sm:p-4 bg-[#0d1117] border border-white/10 flex items-center justify-between shrink-0">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15">
             <img
               src="/ai-tutor.png"
-              alt="AI Tutor"
-              className="w-11 h-11 rounded-2xl object-contain filter drop-shadow-[0_0_14px_rgba(0,245,255,0.65)]"
+              alt="PadhAI Tutor Mascot"
+              className="w-full h-full object-cover"
             />
-            <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 border-2 border-[#0d1424]" />
-            </span>
           </div>
+
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-base font-bold text-white tracking-tight">24/7 PadhAI Tutor</h2>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[#00f5ff] text-[10px] font-semibold tracking-wide uppercase">
-                Active
-              </span>
+              <h2 className="text-sm font-semibold text-white tracking-tight">PadhAI Tutor</h2>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             </div>
-            <p className="text-xs text-[#8a8faa]">Ask any conceptual doubt, code walkthrough, or proof</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Ask conceptual doubts, algorithms, or code walkthroughs</p>
           </div>
         </div>
 
-        <button
-          onClick={handleReset}
-          title="Reset conversation"
-          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#8a8faa] hover:text-white transition-all cursor-pointer"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
+            title="Configure Gemini API Key"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300 transition-colors cursor-pointer"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-xs">API Key</span>
+          </button>
+
+          <button
+            onClick={handleReset}
+            title="Reset conversation"
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Quick Starter Prompts */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0 no-scrollbar">
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 shrink-0 no-scrollbar">
         {QUICK_QUESTIONS.map((q, i) => (
           <button
             key={i}
             disabled={loading}
             onClick={() => handleSend(q)}
-            className="px-3 py-1.5 rounded-xl bg-[#0e1628] hover:bg-[#17233f] border border-white/[0.08] hover:border-cyan-500/40 text-xs font-medium text-[#8a8faa] hover:text-white shrink-0 transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
+            className="px-3 py-1 rounded-lg bg-[#161b26] hover:bg-[#1f2535] border border-white/10 text-xs text-zinc-400 hover:text-zinc-200 shrink-0 transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
           >
-            <Lightbulb className="w-3.5 h-3.5 text-[#00f5ff] shrink-0" />
+            <Lightbulb className="w-3 h-3 text-blue-400 shrink-0" />
             <span>{q}</span>
           </button>
         ))}
       </div>
 
       {/* Chat Messages Body */}
-      <div className="flex-1 rounded-3xl p-4 sm:p-6 bg-[#080c16]/90 border border-white/[0.08] shadow-2xl overflow-y-auto space-y-4">
+      <div className="flex-1 rounded-2xl p-4 sm:p-5 bg-[#0d1117] border border-white/10 overflow-y-auto space-y-3.5">
         {messages.map((msg, i) => {
           const isUser = msg.role === 'user';
           const isCopied = copiedIdx === i;
+          const isSpeaking = speakingIdx === i;
 
           return (
             <div
               key={i}
-              className={`flex items-start gap-3 ${
-                isUser ? 'flex-row-reverse' : 'flex-row'
-              }`}
+              className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
             >
-              {/* Avatar */}
-              <div className="shrink-0 mt-0.5">
-                {isUser ? (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1f6feb] to-[#388bfd] text-white flex items-center justify-center text-xs font-bold shadow-md">
-                    <User className="w-4 h-4" />
-                  </div>
-                ) : (
-                  <img
-                    src="/ai-tutor.png"
-                    alt="Tutor"
-                    className="w-8 h-8 rounded-xl object-contain filter drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]"
-                  />
-                )}
-              </div>
-
-              {/* Message Bubble */}
               <div
-                className={`relative group max-w-[85%] p-4 rounded-2xl text-xs sm:text-[13px] leading-relaxed shadow-md ${
+                className={`relative group max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed ${
                   isUser
-                    ? 'bg-gradient-to-r from-[#1f6feb] to-[#2563eb] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(31,111,235,0.25)]'
-                    : 'bg-[#0d1424] border border-white/[0.08] text-[#e6edf3] rounded-tl-sm'
+                    ? 'bg-blue-600 text-white rounded-br-xs'
+                    : 'bg-[#161b26] border border-white/5 text-zinc-200 rounded-bl-xs'
                 }`}
               >
                 {!isUser && (
-                  <button
-                    onClick={() => handleCopy(i, msg.content)}
-                    title="Copy message"
-                    className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#8a8faa] hover:text-white transition-opacity opacity-0 group-hover:opacity-100 cursor-pointer"
-                  >
-                    {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  </button>
+                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#161b26] rounded-md px-1 py-0.5 border border-white/10">
+                    <button
+                      onClick={() => handleToggleSpeak(i, msg.content)}
+                      title={isSpeaking ? 'Stop' : 'Listen'}
+                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer"
+                    >
+                      {isSpeaking ? (
+                        <VolumeX className="w-3 h-3 text-blue-400" />
+                      ) : (
+                        <Volume2 className="w-3 h-3" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => handleCopy(i, msg.content)}
+                      title="Copy"
+                      className="text-zinc-400 hover:text-white p-0.5 cursor-pointer"
+                    >
+                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
                 )}
 
-                <div className={isUser ? 'text-white' : ''}>
-                  <MarkdownRenderer content={msg.content} />
-                </div>
+                <MarkdownRenderer content={msg.content} />
               </div>
             </div>
           );
@@ -196,33 +246,22 @@ export const AITutorView = () => {
 
         {/* Loading Indicator */}
         {loading && (
-          <div className="flex items-start space-x-3">
-            <img
-              src="/ai-tutor.png"
-              alt="Tutor"
-              className="w-8 h-8 rounded-xl object-contain filter drop-shadow-[0_0_8px_rgba(0,245,255,0.5)] shrink-0"
-            />
-            <div className="bg-[#0d1424] border border-white/[0.08] rounded-2xl rounded-tl-sm p-4 flex items-center space-x-3 shadow-md">
-              <div className="flex space-x-1">
-                <span className="w-2 h-2 rounded-full bg-[#00f5ff] animate-bounce" />
-                <span className="w-2 h-2 rounded-full bg-[#38bdf8] animate-bounce [animation-delay:0.2s]" />
-                <span className="w-2 h-2 rounded-full bg-[#818cf8] animate-bounce [animation-delay:0.4s]" />
-              </div>
-              <span className="text-xs text-[#8a8faa] font-medium">PadhAI is reasoning...</span>
-            </div>
+          <div className="flex items-center space-x-2 bg-[#161b26] border border-white/5 rounded-xl px-3.5 py-2 text-xs text-zinc-400 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            <span>Thinking...</span>
           </div>
         )}
 
         {/* Error Banner */}
         {error && !loading && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between gap-2 shadow-md">
+          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between gap-2">
             <div className="flex items-center space-x-2 min-w-0">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
               <span className="truncate">{error}</span>
             </div>
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-              className="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-xs font-semibold shrink-0 transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-200 text-xs font-medium shrink-0 cursor-pointer"
             >
               Set Key
             </button>
@@ -238,24 +277,24 @@ export const AITutorView = () => {
           e.preventDefault();
           handleSend();
         }}
-        className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#0e1424] border border-white/10 focus-within:border-[#00f5ff]/60 focus-within:ring-2 focus-within:ring-[#00f5ff]/20 transition-all shadow-xl shrink-0"
+        className="flex items-center gap-2 bg-[#121620] border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-blue-500/60 transition-colors shrink-0"
       >
         <input
           ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask anything (e.g. explain dynamic programming memoization, prove master theorem)..."
+          placeholder="Ask anything..."
           disabled={loading}
-          className="flex-1 bg-transparent px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#6e7681] focus:outline-none disabled:opacity-50"
+          className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50 py-1"
         />
 
         <button
           type="submit"
           disabled={!input.trim() || loading}
-          className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] flex items-center justify-center transition-all shadow-[0_0_15px_rgba(0,245,255,0.4)] disabled:opacity-30 disabled:pointer-events-none shrink-0 cursor-pointer"
+          className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:pointer-events-none text-white flex items-center justify-center transition-colors shrink-0 cursor-pointer"
         >
-          <Send className="w-4 h-4 text-[#020617] stroke-[2.5]" />
+          <Send className="w-3.5 h-3.5" />
         </button>
       </form>
     </div>
