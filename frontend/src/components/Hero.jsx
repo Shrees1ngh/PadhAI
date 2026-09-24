@@ -84,18 +84,6 @@ export const Hero = ({
       {/* Main Learning Search Hub Section */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6 sm:space-y-8 relative z-10">
 
-        {/* Brand Badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-[#161b22] border border-[#30363d] text-sm text-[#8b949e]"
-        >
-          <div className="w-5 h-5 rounded overflow-hidden bg-[#21262d] border border-[#30363d] p-0.5 flex items-center justify-center shrink-0">
-            <img src="/logo.svg" alt="PadhAI" className="w-full h-full object-contain" />
-          </div>
-          <span className="font-medium text-[#e6edf3]">Padh<span className="text-[#58a6ff]">AI</span> for Developers</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]" />
-        </motion.div>
         {/* Hero Title */}
         <div className="space-y-3">
           <motion.h1

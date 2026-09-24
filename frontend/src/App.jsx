@@ -64,6 +64,15 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Route redirect for /signin and /signup links
+const AuthRouteRedirect = ({ view = 'login' }) => {
+  const { openAuthModal } = useAuth();
+  useEffect(() => {
+    openAuthModal(view);
+  }, [view, openAuthModal]);
+  return <Navigate to="/" replace />;
+};
+
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -314,7 +323,7 @@ export function App() {
       )}
 
       {/* Page Body: Sidebar on Left, Content on Right */}
-      <div className="flex-1 flex min-w-0 pt-[64px]">
+      <div className="flex-1 flex min-w-0 pt-[100px]">
         
         {/* Left Navigation Sidebar (Hidden on Home landing page so Navbar is perfectly centered like Hintify) */}
         {location.pathname !== '/' && (
@@ -537,6 +546,20 @@ export function App() {
             <Route
               path="/settings"
               element={<SettingsView />}
+            />
+
+            {/* Profile & Auth Route Aliases */}
+            <Route
+              path="/profile"
+              element={<Navigate to="/progress" replace />}
+            />
+            <Route
+              path="/signin"
+              element={<AuthRouteRedirect view="login" />}
+            />
+            <Route
+              path="/signup"
+              element={<AuthRouteRedirect view="signup" />}
             />
 
             {/* Fallback */}
