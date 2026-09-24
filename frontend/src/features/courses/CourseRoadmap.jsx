@@ -17,7 +17,9 @@ import {
   ArrowRight,
   Calendar,
   Check,
-  Target
+  Target,
+  Plus,
+  ChevronLeft
 } from 'lucide-react';
 import { fetchCourseProgress } from '../../services/api';
 
@@ -27,6 +29,8 @@ export const CourseRoadmap = ({
   onEditPlan,
   onOpenStudyPlan,
   onOpenResources,
+  onViewAllCourses,
+  onCreateCourse,
 }) => {
   const [activeTab, setActiveTab] = useState('days'); // 'days' | 'modules' | 'resources'
   const [expandedItems, setExpandedItems] = useState({ 0: true, 1: true });
@@ -125,48 +129,70 @@ export const CourseRoadmap = ({
       
       {/* Header Container */}
       <div className="rounded-3xl p-5 sm:p-8 bg-[#0d1322] border border-white/10 shadow-2xl space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              {level} • {duration} • {dailyTime}
-            </span>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-2">
-              {course.title || course.topic || 'Personalized Learning Course'}
-            </h2>
-            <p className="text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              {course.description || `Structured ${durationDays}-day mastery roadmap designed for ${level} learners.`}
-            </p>
-          </div>
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                {onViewAllCourses && (
+                  <button
+                    onClick={onViewAllCourses}
+                    className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>All Courses</span>
+                  </button>
+                )}
+                {onViewAllCourses && <span className="text-slate-600">•</span>}
+                <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  {level} • {duration} • {dailyTime}
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {course.title || course.topic || 'Personalized Learning Course'}
+              </h2>
+            </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-            <button
-              onClick={() => {
-                if (onSelectLesson) {
-                  // Jump to the first uncompleted lesson, or 0,0
-                  let targetMod = 0;
-                  let targetLess = 0;
-                  let found = false;
-                  for (let m = 0; m < modules.length; m++) {
-                    const lessons = modules[m].lessons || [];
-                    for (let l = 0; l < lessons.length; l++) {
-                      if (!completedKeys.has(`${m}_${l}`)) {
-                        targetMod = m;
-                        targetLess = l;
-                        found = true;
-                        break;
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+              {onCreateCourse && (
+                <button
+                  onClick={onCreateCourse}
+                  className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-bold text-slate-200 hover:text-white transition-all flex items-center space-x-1.5 min-h-[36px] cursor-pointer"
+                  title="Generate a new course with AI"
+                >
+                  <Plus className="w-4 h-4 text-indigo-400" />
+                  <span>New Course</span>
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (onSelectLesson) {
+                    // Jump to the first uncompleted lesson, or 0,0
+                    let targetMod = 0;
+                    let targetLess = 0;
+                    let found = false;
+                    for (let m = 0; m < modules.length; m++) {
+                      const lessons = modules[m].lessons || [];
+                      for (let l = 0; l < lessons.length; l++) {
+                        if (!completedKeys.has(`${m}_${l}`)) {
+                          targetMod = m;
+                          targetLess = l;
+                          found = true;
+                          break;
+                        }
                       }
+                      if (found) break;
                     }
-                    if (found) break;
+                    onSelectLesson(targetMod, targetLess);
                   }
-                  onSelectLesson(targetMod, targetLess);
-                }
-              }}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-1.5 min-h-[36px]"
-            >
-              <PlayCircle className="w-4 h-4" />
-              <span>{completedCount > 0 ? 'Resume Course' : 'Start Course'}</span>
-            </button>
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-1.5 min-h-[36px]"
+              >
+                <PlayCircle className="w-4 h-4" />
+                <span className="inline-block min-w-[96px] text-center">
+                  {completedCount > 0 ? 'Resume Course' : 'Start Course'}
+                </span>
+              </button>
 
             <button
               onClick={onEditPlan}
@@ -193,6 +219,12 @@ export const CourseRoadmap = ({
             </button>
           </div>
         </div>
+
+        {/* Dedicated Course Description Row (never squeezed by button label changes) */}
+        <p className="text-sm text-slate-400 max-w-4xl leading-relaxed">
+          {course.description || `Structured ${durationDays}-day mastery roadmap designed for ${level} learners.`}
+        </p>
+      </div>
 
         {/* Progress Bar */}
         <div className="p-4 rounded-2xl bg-[#080c14] border border-white/5 space-y-2">

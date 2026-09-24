@@ -360,7 +360,7 @@ export const generateDemoQuickLearnContent = ({
       },
       {
         type: "diagram",
-        mermaid: `graph LR\n  Sun[Solar Energy] --> Thylakoid[Light Reactions in Thylakoids]\n  Water[H2O] --> Thylakoid\n  Thylakoid --> Oxygen[O2 Released]\n  Thylakoid --> ATP[ATP & NADPH]\n  ATP --> Stroma[Calvin Cycle in Stroma]\n  CO2[CO2 Input] --> Stroma\n  Stroma --> Glucose[Glucose Sugar]\n  style Thylakoid fill:#059669,stroke:#34d399,color:#fff\n  style Stroma fill:#4f46e5,stroke:#818cf8,color:#fff`,
+        mermaid: `graph LR\n  Sun["Solar Energy"] --> Thylakoid["Light Reactions in Thylakoids"]\n  Water["H2O"] --> Thylakoid\n  Thylakoid --> Oxygen["O2 Released"]\n  Thylakoid --> ATP["ATP & NADPH"]\n  ATP --> Stroma["Calvin Cycle in Stroma"]\n  CO2["CO2 Input"] --> Stroma\n  Stroma --> Glucose["Glucose Sugar"]\n  style Thylakoid fill:#059669,stroke:#34d399,color:#fff\n  style Stroma fill:#4f46e5,stroke:#818cf8,color:#fff`,
         caption: "Dual Stage Architecture: Light Reactions (Thylakoids) vs. Calvin Cycle (Stroma)",
       },
       {
@@ -683,7 +683,7 @@ Return 7 to 12 blocks chosen from the following discriminated union types:
 - real_life: { type: "real_life", scenario: string, connection: string }
 - formula: { type: "formula", name: string, latex: string (raw LaTeX WITHOUT outer $$), explanation: string, variables: [{ symbol: string, meaning: string }] } (Use ONLY if topic has real formulas; must be valid KaTeX)
 - chart: { type: "chart", chartType: "line"|"bar"|"area"|"scatter", title: string, xLabel: string, yLabel: string, series: [{ name: string, points: [{ x: number, y: number }] (at least 5 points) }], insight: string, markers?: [{ x: number, y: number, label: string }] } (Include when topic naturally has numeric curves)
-- diagram: { type: "diagram", mermaid: string, caption: string } (Use valid mermaid flowchart TD syntax. Use [Stage] or [Entity] for processes, [(Storage)] for DBs/registries, ([Start]) for terminals. ONLY use {Condition?} diamonds for branching questions/decisions, NEVER for stages, tools, or entities).
+- diagram: { type: "diagram", mermaid: string, caption: string } (Use valid mermaid flowchart TD syntax. Always wrap all node labels in double quotes like Node["Label Text"] and edge labels in quotes like -->|"Edge Label"|. NEVER leave unquoted ampersands (&), plus signs (+), or parentheses inside labels. Use [Stage] for processes, [(Storage)] for DBs/registries, ([Start]) for terminals. ONLY use {Condition?} diamonds for branching questions/decisions, NEVER for stages, tools, or entities).
 - table: { type: "table", title: string, headers: string[], rows: string[][] }
 - code: { type: "code", language: string, code: string, explanation: string } (ONLY if CS/programming)
 - step_by_step: { type: "step_by_step", title: string, steps: [{ step: number, title: string, explanation: string }] }

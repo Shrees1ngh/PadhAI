@@ -8,8 +8,6 @@ import {
   ArrowLeft,
   RefreshCw,
   Sparkles,
-  Bot,
-  Send,
   Code2,
   FileText,
   HelpCircle,
@@ -24,7 +22,7 @@ import {
   Cpu
 } from 'lucide-react';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
-import { generateLessonContent, chatWithAITutor, completeTopicProgress, fetchCourseProgress } from '../../services/api';
+import { generateLessonContent, completeTopicProgress, fetchCourseProgress } from '../../services/api';
 import QuizRunner from '../quizzes/QuizRunner';
 import CheatsheetViewer from '../cheatsheets/CheatsheetViewer';
 import ActiveRecallSection from './ActiveRecallSection';
@@ -71,22 +69,6 @@ export const LessonViewer = ({
 
     loadProgress();
   }, [course?._id, course?.id]);
-
-  // Docked AI Tutor State
-  const [messages, setMessages] = useState([
-    {
-      role: 'user',
-      content: 'Can you explain the main idea of this lesson in simple words with intuition?',
-    },
-    {
-      role: 'assistant',
-      content:
-        'Sure! I am your PadhAI Master Tutor. Ask me any doubt, request a real-world analogy, or ask me to break down complex code step-by-step!',
-    },
-  ]);
-  const [inputQuery, setInputQuery] = useState('');
-  const [tutorLoading, setTutorLoading] = useState(false);
-  const chatBottomRef = useRef(null);
 
   const modules = course?.modules || [];
   const currentModule = modules[activeModIdx] || modules[0];
@@ -145,70 +127,6 @@ export const LessonViewer = ({
     fetchLesson();
   }, [cacheKey]);
 
-  // Reset docked AI Tutor State on lesson change
-  useEffect(() => {
-    if (currentLesson?.title) {
-      setMessages([
-        {
-          role: 'assistant',
-          content: `👋 Hi! I'm your **PadhAI Tutor** for **${currentLesson.title}**${currentDayInfo ? ` (Day ${currentDayInfo.day})` : ''}.\n\nAsk me any doubt, request a real-world analogy, or ask me to break down tricky code step-by-step!`,
-        },
-      ]);
-      setInputQuery('');
-    }
-  }, [cacheKey, currentLesson?.title, currentDayInfo?.day]);
-
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, tutorLoading]);
-
-  // Send message to Docked AI Tutor
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
-    if (!inputQuery.trim() || tutorLoading) return;
-
-    const userText = inputQuery.trim();
-    setInputQuery('');
-    setMessages((prev) => [...prev, { role: 'user', content: userText }]);
-    setTutorLoading(true);
-
-    try {
-      const historyForApi = messages
-        .filter((m) => m.content)
-        .map((m) => ({
-          role: m.role === 'user' ? 'user' : 'assistant',
-          content: m.content,
-        }));
-
-      const res = await chatWithAITutor({
-        message: userText,
-        courseTitle: course?.title || course?.topic || '',
-        moduleTitle: currentModule?.title || '',
-        lessonTitle: currentLesson?.title || '',
-        learningObjective: currentLesson?.learningObjective || '',
-        lessonContent: lessonData || {},
-        learnerLevel: course?.level || course?.setupParams?.currentLevel || 'Beginner',
-        conversationHistory: historyForApi.slice(-6),
-      });
-
-      if (res?.success && res.answer) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: res.answer }]);
-      } else {
-        throw new Error(res?.message || 'Failed to receive tutor response.');
-      }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `⚠️ ${err.message || 'Failed to connect to AI Tutor. Please try again.'}`,
-        },
-      ]);
-    } finally {
-      setTutorLoading(false);
-    }
-  };
-
   const handleToggleComplete = async () => {
     const courseId = course?._id || course?.id;
     if (!courseId || markingComplete) return;
@@ -266,7 +184,7 @@ export const LessonViewer = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       
       {/* Top Breadcrumb & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -372,14 +290,11 @@ export const LessonViewer = ({
       )}
 
       {/* ======================================================== */}
-      {/* 2-COLUMN UNIFIED LESSON VIEW + DOCKED AI TUTOR */}
+      {/* LESSON CONTENT VIEW */}
       {/* ======================================================== */}
       {activeTab === 'lesson' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Left Column: Rich Lesson Content (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="rounded-3xl p-5 sm:p-8 bg-[#0d1322] border border-white/10 shadow-2xl space-y-6">
+        <div className="w-full space-y-6">
+          <div className="w-full rounded-3xl p-6 sm:p-10 bg-[#0d1322] border border-white/10 shadow-2xl space-y-8">
               
               {loading ? (
                 <div className="py-16 text-center space-y-3">
@@ -579,86 +494,6 @@ export const LessonViewer = ({
               </div>
 
             </div>
-          </div>
-
-          {/* Right Column: Docked AI Tutor Panel (5 cols) */}
-          <div className="lg:col-span-5 sticky top-20">
-            <div className="rounded-3xl bg-[#0d1322] border border-white/10 shadow-2xl flex flex-col h-[580px] overflow-hidden">
-              
-              {/* AI Tutor Header */}
-              <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#0b0f19]">
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold text-white truncate">PadhAI Tutor</h3>
-                    <span className="text-sm text-slate-400 truncate block">
-                      Context: {currentLesson?.title}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-bold shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span>Online</span>
-                </div>
-              </div>
-
-              {/* Chat Message Stream */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-sm">
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] p-3.5 rounded-2xl leading-relaxed ${
-                        msg.role === 'user'
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                          : 'bg-[#080c14] border border-white/10 text-slate-200'
-                      }`}
-                    >
-                      <MarkdownRenderer content={msg.content} />
-                    </div>
-                  </div>
-                ))}
-                {tutorLoading && (
-                  <div className="flex justify-start">
-                    <div className="p-3 rounded-2xl bg-[#080c14] border border-white/10 text-slate-400 flex items-center space-x-2">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                      <span className="text-sm">AI Tutor is typing...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={chatBottomRef} />
-              </div>
-
-              {/* Bottom Input Box */}
-              <form
-                onSubmit={handleSendMessage}
-                className="p-3 border-t border-white/5 bg-[#0b0f19] flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={inputQuery}
-                  onChange={(e) => setInputQuery(e.target.value)}
-                  placeholder="Ask anything about this lesson..."
-                  className="flex-1 bg-[#080c14] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors min-h-[40px]"
-                />
-                <button
-                  type="submit"
-                  disabled={!inputQuery.trim() || tutorLoading}
-                  aria-label="Send query to AI Tutor"
-                  className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-all shadow-md min-h-[40px] min-w-[40px] flex items-center justify-center shrink-0"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </form>
-
-            </div>
-          </div>
-
         </div>
       )}
 

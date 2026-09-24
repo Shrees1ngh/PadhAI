@@ -9,6 +9,7 @@ import {
   FileCode2, 
   TrendingUp, 
   Settings,
+  Zap,
   X
 } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
@@ -28,6 +29,7 @@ export const Sidebar = ({
       label: 'Learning Hub',
       children: [
         { value: 'home', label: 'Home', icon: Home },
+        { value: 'quick-learn', label: 'Quick Learn', icon: Zap },
         { value: 'my-learning', label: 'My Courses', icon: BookOpen },
       ]
     },

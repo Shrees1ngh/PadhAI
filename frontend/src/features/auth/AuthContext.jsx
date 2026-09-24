@@ -129,20 +129,29 @@ export const AuthProvider = ({ children }) => {
       const res = await apiGetGoogleAuthUrl();
       if (res?.success && res.url) {
         window.location.href = res.url;
-      } else {
-        throw new Error(
-          res?.message ||
-            'Google OAuth is not configured on the server. Please check GOOGLE_CLIENT_ID in server/.env.'
-        );
+        return;
       }
+      throw new Error(
+        res?.message ||
+          'Google OAuth is not configured on the server. Please check GOOGLE_CLIENT_ID.'
+      );
     } catch (err) {
-      console.error('Google OAuth URL error:', err);
-      throw err;
+      console.warn('API Google URL error, attempting direct backend redirect:', err);
+      // Fallback: direct browser navigation to backend /api/auth/google
+      const envUrl = import.meta.env.VITE_API_URL?.trim();
+      const backendBase = envUrl ? envUrl.replace(/\/+$/, '') : '';
+      const targetUrl = backendBase
+        ? `${backendBase.endsWith('/api') ? backendBase : `${backendBase}/api`}/auth/google`
+        : '/api/auth/google';
+      window.location.href = targetUrl;
     }
   };
 
   const logout = () => {
     localStorage.removeItem('padhai_auth_token');
+    localStorage.removeItem('padhai_active_course');
+    localStorage.removeItem('padhai_all_courses');
+    localStorage.removeItem('padhai_lesson_coords');
     setCurrentUser(null);
     setAuthNotification({
       type: 'success',

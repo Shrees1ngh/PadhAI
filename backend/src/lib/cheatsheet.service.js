@@ -377,7 +377,7 @@ const generateDemoBlocksCheatsheet = ({
       },
       {
         type: "diagram",
-        mermaid: `flowchart LR\n  Sun[Solar Energy] --> Thylakoid[Thylakoid Membrane]\n  Water[H2O Input] --> Thylakoid\n  Thylakoid --> O2[O2 Released]\n  Thylakoid -->|ATP & NADPH| Stroma[Calvin Cycle in Stroma]\n  CO2[CO2 Input] --> Stroma\n  Stroma --> Glucose[Glucose C6H12O6 Output]\n  Stroma -->|ADP & NADP+| Thylakoid`,
+        mermaid: `flowchart LR\n  Sun["Solar Energy"] --> Thylakoid["Thylakoid Membrane"]\n  Water["H2O Input"] --> Thylakoid\n  Thylakoid --> O2["O2 Released"]\n  Thylakoid -->|"ATP & NADPH"| Stroma["Calvin Cycle in Stroma"]\n  CO2["CO2 Input"] --> Stroma\n  Stroma --> Glucose["Glucose C6H12O6 Output"]\n  Stroma -->|"ADP & NADP+"| Thylakoid`,
         caption: "Dual-Stage Photosynthesis: Light Reactions vs. Calvin Cycle Pathway",
       },
       {
@@ -828,11 +828,12 @@ The cheatsheet must contain an array of between 8 and 14 cohesive, domain-adapte
 - formula: { type: "formula", name: string, latex: string (clean valid KaTeX without enclosing $$), explanation: string, variables: [{ symbol: string, meaning: string }] }
 - chart: { type: "chart", chartType: "line"|"bar"|"area"|"scatter", title: string, xLabel: string, yLabel: string, series: [{ name: string, points: [{ x: number, y: number }] (at least 5 finite numeric coordinates) }], insight: string, markers?: [{ x: number, y: number, label: string }] }
 - diagram: { type: "diagram", mermaid: string (valid flowchart TD syntax without backticks), caption: string }
-  * Standard Steps / Processes / Artifacts: use square brackets [Name], e.g. [Dockerfile], [Docker Build], [Docker Image], [Docker Container].
-  * Storage / Database / Registry: use cylinder [(Docker Registry)] or [(Database)].
-  * Start / Finish terminals: use rounded ([Start]) or ([Finish]).
-  * CRITICAL: Diamond braces {Condition?} are STRICTLY RESERVED for binary branching decisions (e.g. {Is Valid?} -->|Yes| A and -->|No| B). NEVER use diamond braces { } for entities, tools, stages, files, or objects.
-  * Edge labels: keep short and concise (e.g. A -->|Build| B).
+  * Standard Steps / Processes / Artifacts: use square brackets with quotes ["Name"], e.g. ["Dockerfile"], ["Docker Build"], ["Docker Image"], ["Docker Container"].
+  * Storage / Database / Registry: use cylinder [("Docker Registry")] or [("Database")].
+  * Start / Finish terminals: use rounded (["Start"]) or (["Finish"]).
+  * CRITICAL: Always wrap node labels in double quotes ["..."] and edge labels in quotes -->|"..."|. NEVER use unquoted ampersands (&), plus signs (+), or parentheses inside labels.
+  * CRITICAL: Diamond braces {"Condition?"} are STRICTLY RESERVED for binary branching decisions (e.g. {"Is Valid?"} -->|"Yes"| A and -->|"No"| B). NEVER use diamond braces { } for entities, tools, stages, files, or objects.
+  * Edge labels: keep short and concise (e.g. A -->|"Build"| B).
 - table: { type: "table", title: string, headers: string[], rows: string[][] }
 - code: { type: "code", language: string, code: string, explanation: string } (ONLY if computer_science or programming)
 - syntax: { type: "syntax", language: string, snippet: string, notes: string } (ONLY if computer_science or programming)

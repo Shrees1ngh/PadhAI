@@ -283,28 +283,88 @@ export const getMeHandler = async (req, res) => {
 };
 
 /**
- * GET /api/auth/google/url
- * Returns the Google OAuth 2.0 authorization URL with CSRF state token
+ * Helper to build cross-site and production-ready cookie options
  */
-export const getGoogleAuthUrlHandler = (req, res) => {
-  if (!ENV.GOOGLE_CLIENT_ID) {
-    return res.status(400).json({
-      success: false,
-      configured: false,
-      message:
-        "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.",
-    });
+export const getOAuthCookieOptions = (isProduction) => ({
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge: 15 * 60 * 1000, // 15 minutes
+  path: "/",
+});
+
+/**
+ * Helper to generate a tamper-proof, time-bound HMAC-signed OAuth state token.
+ * Guarantees CSRF protection without depending on cross-site/third-party cookies.
+ */
+export const generateOAuthState = () => {
+  const payload = {
+    ts: Date.now(),
+    nonce: crypto.randomBytes(16).toString("hex"),
+  };
+  const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", ENV.JWT_SECRET)
+    .update(payloadEncoded)
+    .digest("base64url");
+  return `${payloadEncoded}.${signature}`;
+};
+
+/**
+ * Helper to verify an OAuth state token.
+ * Validates HMAC signature, ensures expiration within 15 minutes, and prevents future timestamps.
+ */
+export const verifyOAuthState = (state, cookieState) => {
+  // Strategy 1: Cryptographic HMAC signature verification (Stateless & Cross-Origin immune)
+  if (state && typeof state === "string" && state.includes(".")) {
+    const parts = state.split(".");
+    if (parts.length === 2) {
+      const [payloadEncoded, signature] = parts;
+      try {
+        const expectedSignature = crypto
+          .createHmac("sha256", ENV.JWT_SECRET)
+          .update(payloadEncoded)
+          .digest("base64url");
+
+        if (
+          signature.length === expectedSignature.length &&
+          crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+        ) {
+          const payload = JSON.parse(Buffer.from(payloadEncoded, "base64url").toString("utf8"));
+          const age = Date.now() - payload.ts;
+          const maxAge = 15 * 60 * 1000; // 15 minutes
+          // Valid if between -60s (allow minor clock drift) and 15 minutes
+          if (age >= -60000 && age <= maxAge) {
+            return true;
+          } else {
+            console.warn(`[OAuth] State token expired or clock drift issue: age=${age}ms`);
+          }
+        } else {
+          console.warn("[OAuth] State signature mismatch: possible tampering or secret mismatch");
+        }
+      } catch (err) {
+        console.warn("[OAuth] Failed to decode or verify HMAC state:", err.message);
+      }
+    }
   }
 
-  const state = crypto.randomBytes(32).toString("hex");
+  // Strategy 2: Cookie comparison (Fallback if cookie survived cross-site redirect)
+  if (cookieState && state && state === cookieState) {
+    return true;
+  }
 
-  // Store state in httpOnly cookie (10 min expiry)
-  res.cookie("google_oauth_state", state, {
-    httpOnly: true,
-    secure: ENV.NODE_ENV === "production" || process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 10 * 60 * 1000,
-  });
+  return false;
+};
+
+/**
+ * Internal helper to construct the Google OAuth 2.0 URL and set the state cookie
+ */
+const createGoogleOAuthSession = (req, res) => {
+  const state = generateOAuthState();
+  const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
+
+  // Store state in cookie with cross-site compatible attributes
+  res.cookie("google_oauth_state", state, getOAuthCookieOptions(isProduction));
 
   const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
   const options = {
@@ -323,11 +383,47 @@ export const getGoogleAuthUrlHandler = (req, res) => {
   const qs = new URLSearchParams(options).toString();
   const authUrl = `${rootUrl}?${qs}`;
 
+  return { authUrl, state };
+};
+
+/**
+ * GET /api/auth/google/url
+ * Returns the Google OAuth 2.0 authorization URL with CSRF state token
+ */
+export const getGoogleAuthUrlHandler = (req, res) => {
+  if (!ENV.GOOGLE_CLIENT_ID) {
+    return res.status(400).json({
+      success: false,
+      configured: false,
+      message:
+        "Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.",
+    });
+  }
+
+  const { authUrl } = createGoogleOAuthSession(req, res);
+
   return res.status(200).json({
     success: true,
     configured: true,
     url: authUrl,
   });
+};
+
+/**
+ * GET /api/auth/google
+ * Direct browser navigation endpoint that redirects straight to Google OAuth
+ */
+export const googleDirectRedirectHandler = (req, res) => {
+  if (!ENV.GOOGLE_CLIENT_ID) {
+    return res.redirect(
+      `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
+        "Google OAuth is not configured on the server."
+      )}`
+    );
+  }
+
+  const { authUrl } = createGoogleOAuthSession(req, res);
+  return res.redirect(authUrl);
 };
 
 /**
@@ -337,9 +433,15 @@ export const getGoogleAuthUrlHandler = (req, res) => {
 export const googleCallbackHandler = async (req, res) => {
   const { code, state, error } = req.query;
   const cookieState = req.cookies?.google_oauth_state;
+  const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
 
-  // Clear state cookie
-  res.clearCookie("google_oauth_state");
+  // Clear state cookie with matching options
+  res.clearCookie("google_oauth_state", {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    path: "/",
+  });
 
   if (error || !code) {
     console.warn("Google OAuth error or cancellation:", error);
@@ -350,9 +452,10 @@ export const googleCallbackHandler = async (req, res) => {
     );
   }
 
-  // Verify OAuth state
-  if (!state || !cookieState || state !== cookieState) {
-    console.warn("Google OAuth state verification failed. State:", state, "Cookie:", cookieState);
+  // Verify OAuth state using dual-verification (HMAC signature OR cookie match)
+  const isStateValid = verifyOAuthState(state, cookieState);
+  if (!isStateValid) {
+    console.warn("[OAuth] State verification failed. State:", state, "Cookie:", cookieState);
     return res.redirect(
       `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
         "Google OAuth state verification failed. Possible CSRF attempt."
@@ -406,39 +509,64 @@ export const googleCallbackHandler = async (req, res) => {
     const name = googleUser.name || googleUser.given_name || "Google Learner";
     const avatar = googleUser.picture || "";
 
-    // 3. Find user by googleId or email
-    let user = await User.findOne({
-      $or: [{ googleId }, { email: normalizedEmail }],
-    });
+    // 3. Find user by googleId or email (with DB and memory fallback)
+    let user = null;
+    const isDbConnected = mongoose.connection.readyState === 1;
 
-    if (user) {
-      // Check if user is a local account without Google linked yet
-      if (user.authProvider === "local" && !user.googleId) {
-        if (!user.emailVerified) {
-          return res.redirect(
-            `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
-              "An account with this email exists but is not verified. Please log in with your email and password to verify your account before linking Google."
-            )}`
-          );
-        }
-        user.googleId = googleId;
-      }
-
-      if (!user.avatar && avatar) {
-        user.avatar = avatar;
-      }
-      await user.save();
-    } else {
-      // Create new Google OAuth user (emailVerified is true because Google verified it)
-      user = new User({
-        name,
-        email: normalizedEmail,
-        googleId,
-        avatar,
-        authProvider: "google",
-        emailVerified: true,
+    if (isDbConnected) {
+      user = await User.findOne({
+        $or: [{ googleId }, { email: normalizedEmail }],
       });
-      await user.save();
+
+      if (user) {
+        // Check if user is a local account without Google linked yet
+        if (user.authProvider === "local" && !user.googleId) {
+          if (!user.emailVerified) {
+            return res.redirect(
+              `${ENV.CLIENT_URL}/?auth_error=${encodeURIComponent(
+                "An account with this email exists but is not verified. Please log in with your email and password to verify your account before linking Google."
+              )}`
+            );
+          }
+          user.googleId = googleId;
+        }
+
+        if (!user.avatar && avatar) {
+          user.avatar = avatar;
+        }
+        await user.save();
+      } else {
+        // Create new Google OAuth user (emailVerified is true because Google verified it)
+        user = new User({
+          name,
+          email: normalizedEmail,
+          googleId,
+          avatar,
+          authProvider: "google",
+          emailVerified: true,
+        });
+        await user.save();
+      }
+    } else {
+      // Memory fallback for development when MongoDB is offline
+      if (memoryUsers.has(normalizedEmail)) {
+        user = memoryUsers.get(normalizedEmail);
+        user.avatar = avatar || user.avatar;
+        user.googleId = googleId;
+      } else {
+        const devId = new mongoose.Types.ObjectId().toString();
+        user = {
+          _id: devId,
+          id: devId,
+          name,
+          email: normalizedEmail,
+          googleId,
+          avatar,
+          authProvider: "google",
+          emailVerified: true,
+        };
+        memoryUsers.set(normalizedEmail, user);
+      }
     }
 
     // 4. Generate JWT

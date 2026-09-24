@@ -46,6 +46,7 @@ try {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'loose',
+    suppressErrorRendering: true,
     theme: 'dark',
   });
 } catch (e) {
@@ -404,27 +405,75 @@ export const sanitizeMermaidCode = (code) => {
   // Strip markdown code fences if present
   cleaned = cleaned.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '').trim();
 
+  // 1. Normalize unicode dashes, box-drawing characters, and unicode arrows to standard ASCII Mermaid syntax
+  cleaned = cleaned
+    .replace(/[─—–―]{2,}>/g, '-->')
+    .replace(/[─—–―]>/g, '->')
+    .replace(/[─—–―]{2,}/g, '--')
+    .replace(/[─—–―]/g, '-')
+    .replace(/[→⟶]/g, '-->')
+    .replace(/[←⟵]/g, '<--')
+    .replace(/[↔⟷]/g, '<-->');
+
+  // 2. Fix escaped quotes and trailing backslashes: e.g. Mem["Address 0x7ffee\"] -> Mem["Address 0x7ffee"]
+  cleaned = cleaned
+    .replace(/\\+"\]/g, '"]')
+    .replace(/\\+"/g, "'");
+
+  // 3. Fix literal \n inside node labels to <br/>
+  cleaned = cleaned.replace(/\\n/g, '<br/>');
+
   // Ensure valid diagram prefix
   if (!/^(flowchart|graph|stateDiagram|sequenceDiagram|classDiagram|erDiagram|journey|gantt|pie|gitGraph)\b/i.test(cleaned)) {
     cleaned = `flowchart TD\n${cleaned}`;
   }
 
-  // Convert accidental diamond braces {Entity} into rectangular [Entity]
-  // In Mermaid, NodeId{Text} is a rhombus / decision diamond.
-  // If Text does NOT end with '?' and has no comparison/condition words,
-  // it's an entity or step mistakenly rendered as a decision diamond.
-  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\{([^}]+)\}/g, (match, nodeId, text) => {
-    const trimmed = text.trim();
-    const isCondition =
-      trimmed.endsWith('?') ||
-      /[=<>!]/.test(trimmed) ||
-      /^(is|if|has|can|should|check|does|valid|test)\b/i.test(trimmed);
+  // 1. Edge labels: quote unquoted edge labels: -->|label| -> -->|"label"|
+  cleaned = cleaned.replace(/(-->|---|-.->|==>)\s*\|([^"|\n][^|\n]*)\|/g, (match, arrow, label) => {
+    const safe = label.trim().replace(/"/g, "'");
+    return `${arrow}|"${safe}"|`;
+  });
 
+  // 1b. Edge labels: -- Yes --> -> -->|"Yes"|
+  cleaned = cleaned.replace(/--\s*([^->\n]+?)\s*-->/g, (match, label) => {
+    const safe = label.trim().replace(/"/g, "'");
+    return `-->|"${safe}"|`;
+  });
+
+  // 2. Decision diamonds: Convert accidental diamond braces {Entity} into rectangular [Entity]
+  // In Mermaid, NodeId{Text} is a rhombus / decision diamond.
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\{([^}]+)\}/g, (match, nodeId, text) => {
+    const normalizedText = text.trim().replace(/\[/g, '(').replace(/\]/g, ')');
+    const isCondition =
+      normalizedText.endsWith('?') ||
+      /[=<>!]/.test(normalizedText) ||
+      /^(is|if|has|can|should|check|does|valid|test)\b/i.test(normalizedText);
+
+    const safeText = normalizedText.replace(/"/g, "'");
     if (isCondition) {
-      return match;
+      return `${nodeId}{"${safeText}"}`;
     }
-    const safeText = trimmed.replace(/"/g, "'");
     return `${nodeId}["${safeText}"]`;
+  });
+
+  // 3. Stadium nodes: nodeId([text]) -> nodeId(["text"])
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\(\[([^"\]\n][^\]\n]*)\]\)/g, (match, nodeId, text) => {
+    return `${nodeId}(["${text.trim().replace(/"/g, "'")}"])`;
+  });
+
+  // 4. Circle nodes: nodeId((text)) -> nodeId(("text"))
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\(\(([^"\)\n][^\)\n]*)\)\)/g, (match, nodeId, text) => {
+    return `${nodeId}(("${text.trim().replace(/"/g, "'")}"))`;
+  });
+
+  // 5. Cylindrical / Database: nodeId[(text)] -> nodeId[("text")]
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\[\(([^"\)\n][^\)\n]*)\)\]/g, (match, nodeId, text) => {
+    return `${nodeId}[("${text.trim().replace(/"/g, "'")}")]`;
+  });
+
+  // 6. Rectangular nodes: nodeId[text] -> nodeId["text"] (if not already quoted)
+  cleaned = cleaned.replace(/([a-zA-Z0-9_-]+)\[([^"\]\n][^\]\n]*)\]/g, (match, nodeId, text) => {
+    return `${nodeId}["${text.trim().replace(/"/g, "'")}"]`;
   });
 
   return cleaned;
@@ -437,18 +486,40 @@ export const DiagramBlock = ({ block, isPaper }) => {
   const containerRef = useRef(null);
   const [renderError, setRenderError] = useState(false);
 
+  // Helper to remove any rogue error SVGs that Mermaid attaches to document.body
+  const cleanupMermaidStrayElements = (id) => {
+    if (typeof document === 'undefined') return;
+    try {
+      const selectors = [
+        id ? `#d${id}` : null,
+        '[id^="dmermaid-"]',
+        'svg[aria-roledescription="error"]',
+        '.mermaidError',
+        '.error-icon',
+      ].filter(Boolean);
+      const stray = document.querySelectorAll(selectors.join(', '));
+      stray.forEach((el) => {
+        try {
+          el.remove();
+        } catch (_) {}
+      });
+    } catch (_) {}
+  };
+
   useEffect(() => {
     let isMounted = true;
     const renderDiagram = async () => {
       if (!block.mermaid || !containerRef.current) return;
+      const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       try {
         setRenderError(false);
         const cleanedMermaid = sanitizeMermaidCode(block.mermaid);
 
-        // Configure Mermaid dynamically per theme
+        // Configure Mermaid dynamically per theme with suppressErrorRendering enabled
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'loose',
+          suppressErrorRendering: true,
           theme: isPaper ? 'default' : 'dark',
           themeVariables: isPaper
             ? {
@@ -484,13 +555,30 @@ export const DiagramBlock = ({ block, isPaper }) => {
           },
         });
 
-        const uniqueId = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        cleanupMermaidStrayElements(uniqueId);
         const { svg } = await mermaid.render(uniqueId, cleanedMermaid);
         if (isMounted && containerRef.current) {
           containerRef.current.innerHTML = svg;
+          const svgEl = containerRef.current.querySelector('svg');
+          if (svgEl) {
+            const vb = svgEl.viewBox?.baseVal;
+            if (vb && vb.width > 0) {
+              const naturalWidth = Math.round(vb.width);
+              // Constrain max-width to natural diagram width so 1-2 node diagrams don't stretch into giant screens
+              const targetMax = Math.min(Math.max(naturalWidth, 240), 620);
+              svgEl.style.setProperty('max-width', `${targetMax}px`, 'important');
+            } else {
+              svgEl.style.setProperty('max-width', '600px', 'important');
+            }
+            svgEl.style.setProperty('max-height', '380px', 'important');
+            svgEl.style.setProperty('height', 'auto', 'important');
+            svgEl.style.setProperty('width', '100%', 'important');
+            svgEl.style.setProperty('margin', '0 auto', 'important');
+          }
         }
       } catch (err) {
         console.warn('Mermaid rendering syntax fallback:', err.message);
+        cleanupMermaidStrayElements(uniqueId);
         if (isMounted) setRenderError(true);
       }
     };
@@ -498,6 +586,7 @@ export const DiagramBlock = ({ block, isPaper }) => {
     renderDiagram();
     return () => {
       isMounted = false;
+      cleanupMermaidStrayElements();
     };
   }, [block.mermaid, isPaper]);
 

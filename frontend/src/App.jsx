@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import CourseWizard from './features/courses/CourseWizard';
 import CourseRoadmap from './features/courses/CourseRoadmap';
+import CoursesDashboard from './features/courses/CoursesDashboard';
 import LessonViewer from './features/lessons/LessonViewer';
 import QuizRunner from './features/quizzes/QuizRunner';
 import ProgressDashboard from './features/progress/ProgressDashboard';
@@ -18,9 +19,10 @@ import AuthModal from './features/auth/AuthModal';
 import ApiKeyModal from './components/ApiKeyModal';
 import QuickLearnView from './features/quick-learn/QuickLearnView';
 import GlobalAITutorButton from './features/ai-tutor/GlobalAITutorButton';
+import SwipeToast from './components/SwipeToast/SwipeToast';
 import { useAuth } from './features/auth/AuthContext';
 import { checkHealth, fetchCourses, fetchSavedTopics } from './services/api';
-import { BookOpen, ArrowRight, UserCheck, X } from 'lucide-react';
+import { BookOpen, ArrowRight, UserCheck, X, AlertCircle, CheckCircle2, Layers, Plus } from 'lucide-react';
 
 // Protected Route Component to enforce authentication
 const ProtectedRoute = ({ children }) => {
@@ -77,12 +79,15 @@ const AuthRouteRedirect = ({ view = 'login' }) => {
 export function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { authNotification, clearAuthNotification, openAuthModal, isAuthenticated } = useAuth();
+  const { currentUser, authNotification, clearAuthNotification, openAuthModal, isAuthenticated } = useAuth();
+
+  const currentUserId = currentUser?._id || currentUser?.id || (isAuthenticated && currentUser?.email ? currentUser.email : null);
 
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savedCourses, setSavedCourses] = useState([]);
+  const [coursesViewMode, setCoursesViewMode] = useState('dashboard'); // 'dashboard' | 'roadmap'
   const [savedTopics, setSavedTopics] = useState([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
@@ -93,24 +98,86 @@ export function App() {
     return () => window.removeEventListener('open-api-key-modal', handleOpenApiKeyModal);
   }, []);
 
-  // Multi-Page State Persistence across Refresh & Deep Linking
-  const [activeCourse, setActiveCourseState] = useState(() => {
-    try {
-      const saved = localStorage.getItem('padhai_active_course');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+  // Global SwipeToast Notifications State
+  const [activeToast, setActiveToast] = useState(null);
+
+  useEffect(() => {
+    if (authNotification) {
+      setActiveToast({
+        id: Date.now(),
+        type: authNotification.type || 'info',
+        title: authNotification.title || (authNotification.type === 'error' ? 'Notice' : 'Success'),
+        description: authNotification.message,
+        duration: 4500,
+        fuseColor: authNotification.type === 'error' ? '#f43f5e' : '#10b981',
+      });
     }
-  });
+  }, [authNotification]);
+
+  // Support global custom toast triggers across entire app via 'padhai-toast'
+  useEffect(() => {
+    window.showToast = (toast) => {
+      window.dispatchEvent(new CustomEvent('padhai-toast', { detail: toast }));
+    };
+
+    const handleCustomToast = (e) => {
+      if (e?.detail) {
+        setActiveToast({
+          id: Date.now(),
+          type: e.detail.type || 'info',
+          title: e.detail.title || 'Notification',
+          description: e.detail.description || e.detail.message || '',
+          actionLabel: e.detail.actionLabel,
+          onAction: e.detail.onAction,
+          duration: e.detail.duration || 4000,
+          fuseColor: e.detail.fuseColor || (e.detail.type === 'error' ? '#f43f5e' : '#388bfd'),
+        });
+      }
+    };
+    window.addEventListener('padhai-toast', handleCustomToast);
+    return () => window.removeEventListener('padhai-toast', handleCustomToast);
+  }, []);
+
+  // User-Scoped Course State Persistence
+  const [activeCourse, setActiveCourseState] = useState(null);
 
   const setActiveCourse = (course) => {
     setActiveCourseState(course);
-    if (course) {
-      localStorage.setItem('padhai_active_course', JSON.stringify(course));
-    } else {
-      localStorage.removeItem('padhai_active_course');
+    if (currentUserId) {
+      const userActiveKey = `padhai_active_course_${currentUserId}`;
+      if (course) {
+        try {
+          localStorage.setItem(userActiveKey, JSON.stringify(course));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.removeItem(userActiveKey);
+        } catch (e) {}
+      }
     }
   };
+
+  // Keep savedCourses in sync with activeCourse only if belongs to current user
+  useEffect(() => {
+    if (activeCourse && currentUserId) {
+      setSavedCourses((prev) => {
+        const idMatches = (c, target) =>
+          (c._id && target._id && c._id === target._id) ||
+          (c.id && target.id && c.id === target.id) ||
+          (c.title && target.title && c.title === target.title);
+
+        const exists = prev.some((c) => idMatches(c, activeCourse));
+        if (!exists) {
+          const updated = [activeCourse, ...prev];
+          try {
+            localStorage.setItem(`padhai_all_courses_${currentUserId}`, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [activeCourse, currentUserId]);
 
   const [selectedLessonCoordinates, setSelectedLessonCoordinatesState] = useState(() => {
     try {
@@ -193,19 +260,48 @@ export function App() {
     }
   };
 
-  const loadSavedCoursesAndTopics = async () => {
-    if (!isAuthenticated) {
+  const loadSavedCoursesAndTopics = async (uid = currentUserId) => {
+    if (!isAuthenticated || !uid) {
       setSavedCourses([]);
+      setActiveCourseState(null);
       setSavedTopics([]);
       return;
     }
 
     try {
       const res = await fetchCourses();
-      if (res?.courses && res.courses.length > 0) {
-        setSavedCourses(res.courses);
-        if (!activeCourse) {
-          setActiveCourse(res.courses[0]);
+      if (res?.success) {
+        const userCourses = Array.isArray(res.courses) ? res.courses : [];
+        setSavedCourses(userCourses);
+
+        const userCoursesKey = `padhai_all_courses_${uid}`;
+        const userActiveKey = `padhai_active_course_${uid}`;
+
+        try {
+          localStorage.setItem(userCoursesKey, JSON.stringify(userCourses));
+        } catch (e) {}
+
+        if (userCourses.length === 0) {
+          // New user has 0 courses! Reset activeCourse so other accounts don't leak
+          setActiveCourseState(null);
+          try {
+            localStorage.removeItem(userActiveKey);
+          } catch (e) {}
+        } else {
+          // If activeCourse is not among user's courses, set to first
+          setActiveCourseState((prev) => {
+            const matches = prev && userCourses.some(
+              (c) =>
+                (c._id && prev._id && c._id === prev._id) ||
+                (c.id && prev.id && c.id === prev.id) ||
+                (c.title && prev.title && c.title === prev.title)
+            );
+            const nextActive = matches ? prev : userCourses[0];
+            try {
+              localStorage.setItem(userActiveKey, JSON.stringify(nextActive));
+            } catch (e) {}
+            return nextActive;
+          });
         }
       }
     } catch (e) {
@@ -214,7 +310,7 @@ export function App() {
 
     try {
       const topicsRes = await fetchSavedTopics();
-      if (topicsRes?.topics && topicsRes.topics.length > 0) {
+      if (topicsRes?.topics && Array.isArray(topicsRes.topics)) {
         setSavedTopics(topicsRes.topics);
       }
     } catch (e) {
@@ -226,18 +322,117 @@ export function App() {
     fetchHealth();
   }, []);
 
+  // When user switches or logs in/out, clear unscoped legacy keys and load this user's data
   useEffect(() => {
-    loadSavedCoursesAndTopics();
-  }, [isAuthenticated]);
+    // Purge legacy unscoped keys
+    try {
+      localStorage.removeItem('padhai_active_course');
+      localStorage.removeItem('padhai_all_courses');
+    } catch (e) {}
+
+    if (!isAuthenticated || !currentUserId) {
+      setSavedCourses([]);
+      setActiveCourseState(null);
+      setSavedTopics([]);
+      setCoursesViewMode('dashboard');
+      return;
+    }
+
+    // Try instant load from user-scoped storage cache while network request runs
+    const userCoursesKey = `padhai_all_courses_${currentUserId}`;
+    const userActiveKey = `padhai_active_course_${currentUserId}`;
+    try {
+      const cached = localStorage.getItem(userCoursesKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setSavedCourses(parsed);
+          if (parsed.length === 0) {
+            setActiveCourseState(null);
+          } else {
+            const cachedActive = localStorage.getItem(userActiveKey);
+            setActiveCourseState(cachedActive ? JSON.parse(cachedActive) : parsed[0]);
+          }
+        }
+      } else {
+        setSavedCourses([]);
+        setActiveCourseState(null);
+      }
+    } catch {
+      setSavedCourses([]);
+      setActiveCourseState(null);
+    }
+
+    try {
+      const cachedTopics = localStorage.getItem(`padhai_saved_topics_${currentUserId}`);
+      if (cachedTopics) {
+        const parsed = JSON.parse(cachedTopics);
+        if (Array.isArray(parsed)) setSavedTopics(parsed);
+      }
+    } catch {}
+
+    loadSavedCoursesAndTopics(currentUserId);
+  }, [currentUserId, isAuthenticated]);
+
+  useEffect(() => {
+    const handleTopicsUpdated = () => {
+      if (currentUserId) {
+        try {
+          const cachedTopics = localStorage.getItem(`padhai_saved_topics_${currentUserId}`);
+          if (cachedTopics) {
+            const parsed = JSON.parse(cachedTopics);
+            if (Array.isArray(parsed)) setSavedTopics(parsed);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('padhai_topics_updated', handleTopicsUpdated);
+    return () => window.removeEventListener('padhai_topics_updated', handleTopicsUpdated);
+  }, [currentUserId]);
 
   const handleStartLearning = (outline, setupParams) => {
     const courseObj = {
       ...outline,
+      id: outline._id || outline.id || `course_${Date.now()}`,
       setupParams: setupParams || outline.setupParams,
     };
     setActiveCourse(courseObj);
+    setSavedCourses((prev) => {
+      const idMatches = (c, target) =>
+        (c._id && target._id && c._id === target._id) ||
+        (c.id && target.id && c.id === target.id) ||
+        (c.title && target.title && c.title === target.title);
+
+      const exists = prev.some((c) => idMatches(c, courseObj));
+      const updated = exists
+        ? prev.map((c) => (idMatches(c, courseObj) ? { ...c, ...courseObj } : c))
+        : [courseObj, ...prev];
+      if (currentUserId) {
+        try {
+          localStorage.setItem(`padhai_all_courses_${currentUserId}`, JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+    setCoursesViewMode('roadmap');
     navigate('/my-learning');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteCourse = (courseId) => {
+    setSavedCourses((prev) => {
+      const updated = prev.filter((c) => (c._id || c.id) !== courseId && c.title !== courseId);
+      if (currentUserId) {
+        try {
+          localStorage.setItem(`padhai_all_courses_${currentUserId}`, JSON.stringify(updated));
+        } catch (e) {}
+      }
+      if (activeCourse && ((activeCourse._id || activeCourse.id) === courseId || activeCourse.title === courseId)) {
+        const nextActive = updated.length > 0 ? updated[0] : null;
+        setActiveCourse(nextActive);
+      }
+      return updated;
+    });
   };
 
   const handleSelectLessonFromRoadmap = (modIdx, lessIdx) => {
@@ -258,8 +453,12 @@ export function App() {
       case 'home':
         navigate('/');
         break;
+      case 'quick-learn':
+        navigate('/learn');
+        break;
       case 'my-learning':
-        navigate(activeCourse ? '/my-learning' : '/course-wizard');
+        setCoursesViewMode('dashboard');
+        navigate('/my-learning');
         break;
       case 'course-wizard':
         navigate('/course-wizard');
@@ -306,28 +505,36 @@ export function App() {
         onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
       />
 
-      {/* Global Notifications Banner */}
-      {authNotification && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 w-full">
-          <div
-            className={`p-3 rounded-md flex items-center justify-between text-xs font-semibold border ${
-              authNotification.type === 'error'
-                ? 'bg-[#f85149]/10 border-[#f85149]/30 text-[#f85149]'
-                : 'bg-[#3fb950]/10 border-[#3fb950]/30 text-[#3fb950]'
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <UserCheck className="w-4 h-4 shrink-0" />
-              <span>{authNotification.message}</span>
-            </div>
-            <button
-              onClick={clearAuthNotification}
-              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+      {/* React Bits SwipeToast Notification */}
+      {activeToast && (
+        <SwipeToast
+          key={activeToast.id}
+          open={true}
+          onClose={() => {
+            setActiveToast(null);
+            clearAuthNotification();
+          }}
+          title={activeToast.title}
+          description={activeToast.description}
+          actionLabel={activeToast.actionLabel}
+          onAction={activeToast.onAction}
+          icon={
+            activeToast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            )
+          }
+          background="#161b22"
+          color="#e6edf3"
+          fuseColor={activeToast.fuseColor}
+          width={380}
+          radius={14}
+          duration={activeToast.duration}
+          closeButton={true}
+          pauseOnHover={true}
+          fuse="bottom"
+        />
       )}
 
       {/* Page Body: Sidebar on Left, Content on Right */}
@@ -344,12 +551,12 @@ export function App() {
 
         {/* Mobile Drawer Overlay */}
         {mobileSidebarOpen && (
-          <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="fixed inset-0 z-[10050] flex md:hidden">
             <div 
               className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
               onClick={() => setMobileSidebarOpen(false)}
             />
-            <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#0d1117] border-r border-[#21262d] z-50 shadow-2xl">
+            <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#0d1117] border-r border-[#21262d] z-[10051] shadow-2xl">
               <Sidebar
                 isMobile={true}
                 onClose={() => setMobileSidebarOpen(false)}
@@ -430,21 +637,82 @@ export function App() {
               }
             />
 
-            {/* 4. Course Roadmap (Protected) */}
+            {/* 4. Course Roadmap & Multi-Course Dashboard (Protected) */}
             <Route
               path="/my-learning"
               element={
                 <ProtectedRoute>
-                  <CourseRoadmap
-                    course={activeCourse}
-                    onSelectLesson={handleSelectLessonFromRoadmap}
-                    onEditPlan={() => navigate('/course-wizard')}
-                    onOpenStudyPlan={() => navigate('/planner')}
-                    onOpenResources={() => navigate('/upload-material')}
-                  />
+                  <div className="space-y-4">
+                    {/* View Switcher Bar when user has an active course */}
+                    {activeCourse && (
+                      <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#30363d] flex-wrap">
+                        <div className="flex items-center gap-1.5 p-1 bg-[#161b22] border border-[#30363d] rounded-xl shadow-inner">
+                          <button
+                            onClick={() => setCoursesViewMode('dashboard')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              coursesViewMode === 'dashboard'
+                                ? 'bg-[#1f6feb] text-white shadow-sm'
+                                : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]'
+                            }`}
+                          >
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>All Courses ({savedCourses.length})</span>
+                          </button>
+                          <button
+                            onClick={() => setCoursesViewMode('roadmap')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all max-w-[220px] truncate cursor-pointer ${
+                              coursesViewMode === 'roadmap'
+                                ? 'bg-[#1f6feb] text-white shadow-sm'
+                                : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d]'
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{activeCourse.title || 'Course Roadmap'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {coursesViewMode === 'dashboard' || !activeCourse ? (
+                      <CoursesDashboard
+                        courses={savedCourses}
+                        activeCourse={activeCourse}
+                        onSelectCourse={(course) => {
+                          setActiveCourse(course);
+                          setCoursesViewMode('roadmap');
+                        }}
+                        onResumeCourse={(course) => {
+                          setActiveCourse(course);
+                          navigate('/lessons');
+                        }}
+                        onResumeLesson={(course) => {
+                          setActiveCourse(course);
+                          navigate('/lessons');
+                        }}
+                        onCreateCourse={() => navigate('/course-wizard')}
+                        onCreateNew={() => navigate('/course-wizard')}
+                        onViewRoadmap={(course) => {
+                          setActiveCourse(course);
+                          setCoursesViewMode('roadmap');
+                        }}
+                        onDeleteCourse={handleDeleteCourse}
+                      />
+                    ) : (
+                      <CourseRoadmap
+                        course={activeCourse}
+                        onSelectLesson={handleSelectLessonFromRoadmap}
+                        onEditPlan={() => navigate('/course-wizard')}
+                        onOpenStudyPlan={() => navigate('/planner')}
+                        onOpenResources={() => navigate('/upload-material')}
+                        onViewAllCourses={() => setCoursesViewMode('dashboard')}
+                        onCreateCourse={() => navigate('/course-wizard')}
+                      />
+                    )}
+                  </div>
                 </ProtectedRoute>
               }
             />
+            <Route path="/courses" element={<Navigate to="/my-learning" replace />} />
 
             {/* 5. Lesson Viewer (Protected) */}
             <Route

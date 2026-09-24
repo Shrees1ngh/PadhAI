@@ -11,12 +11,12 @@ import {
   Check,
   Volume2,
   VolumeX,
-  KeyRound,
   AlertCircle,
   ChevronRight
 } from 'lucide-react';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 import { sendTutorChatMessage } from '../../services/api';
+import aiTutorSvg from '../../assets/AI_tutor.svg';
 
 export const AITutorDrawer = ({
   isOpen,
@@ -158,9 +158,9 @@ export const AITutorDrawer = ({
       console.error('AI Tutor error:', err);
       const isKeyErr = err.code === 'API_KEY_REQUIRED' || err.message?.toLowerCase().includes('gemini api key is required');
       if (isKeyErr) {
-        setError('Gemini API Key required. Click "Set Key" to continue.');
+        setError('AI model connection failed. Please ensure GEMINI_API_KEY is configured in server .env or Settings.');
       } else {
-        setError(err.message || 'Connection failed. Please check network or API key.');
+        setError(err.message || 'Connection failed. Please check network connection.');
       }
     } finally {
       setLoading(false);
@@ -187,57 +187,52 @@ export const AITutorDrawer = ({
 
   return (
     <AnimatePresence>
-      {/* Floating Chat Widget - NO full-page dark overlay blocking the website */}
+      {/* Floating Chat Widget with smooth spring animation */}
       <motion.div
-        initial={{ opacity: 0, y: 15, scale: 0.96 }}
+        initial={{ opacity: 0, y: 28, scale: 0.94 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 15, scale: 0.96 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="fixed bottom-22 right-6 z-[9995] w-[410px] max-w-[calc(100vw-2rem)] h-[580px] max-h-[calc(100vh-7.5rem)] bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-sm select-text"
+        exit={{ opacity: 0, y: 22, scale: 0.94 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed bottom-22 right-6 z-[9995] w-[410px] max-w-[calc(100vw-2rem)] h-[580px] max-h-[calc(100vh-7.5rem)] bg-[#0d121c]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.7)] flex flex-col overflow-hidden text-sm select-text"
       >
-        {/* Simple Compact Header */}
-        <div className="px-4 py-3 border-b border-white/10 bg-[#121620] flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-white/15">
+        {/* Simple Minimal Header */}
+        <div className="px-4 py-3 border-b border-white/10 bg-[#121826]/90 backdrop-blur-md flex items-center justify-between shrink-0 select-none">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
               <img
-                src="/ai-tutor.png"
+                src={aiTutorSvg}
+                onError={(e) => { e.currentTarget.src = '/AI_tutor.svg'; }}
                 alt="AI Tutor"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-white text-xs truncate">PadhAI Tutor</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-              </div>
+              <h4 className="font-semibold text-white text-xs sm:text-sm tracking-tight truncate">PadhAI Tutor</h4>
               <p className="text-[11px] text-zinc-400 truncate">
-                {lessonTitle || moduleTitle || 'Course Assistant'}
+                {lessonTitle || moduleTitle || 'AI Learning Assistant'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-1 shrink-0">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-              title="Set API Key"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-            </button>
-            <button
+            <motion.button
+              whileHover={{ rotate: -60, scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleResetChat}
-              title="Restart chat"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              title="Reset conversation"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={onClose}
               title="Close"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -249,27 +244,30 @@ export const AITutorDrawer = ({
             const isSpeaking = speakingId === msg.id;
 
             return (
-              <div
+              <motion.div
                 key={msg.id}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
                 className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`relative group max-w-[88%] rounded-xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed ${
+                  className={`relative group max-w-[88%] rounded-2xl px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed transition-all shadow-sm ${
                     isUser
-                      ? 'bg-blue-600 text-white rounded-br-xs'
-                      : 'bg-[#161b26] border border-white/5 text-zinc-200 rounded-bl-xs'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-xs shadow-blue-900/30'
+                      : 'bg-[#151b28] border border-white/5 text-zinc-200 rounded-bl-xs'
                   }`}
                 >
                   {/* Action buttons on AI bubble */}
                   {!isUser && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#161b26] rounded-md px-1 py-0.5 border border-white/10">
+                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-[#151b28]/90 backdrop-blur-sm rounded-md px-1 py-0.5 border border-white/10">
                       <button
                         onClick={() => handleToggleSpeak(msg.id, msg.content)}
                         title={isSpeaking ? 'Stop' : 'Listen'}
                         className="text-zinc-400 hover:text-white p-0.5 cursor-pointer"
                       >
                         {isSpeaking ? (
-                          <VolumeX className="w-3 h-3 text-blue-400" />
+                          <VolumeX className="w-3 h-3 text-cyan-400" />
                         ) : (
                           <Volume2 className="w-3 h-3" />
                         )}
@@ -285,7 +283,7 @@ export const AITutorDrawer = ({
                   )}
 
                   {msg.isOutsideLessonScope && (
-                    <div className="flex items-center gap-1 text-[11px] text-amber-400 mb-1.5">
+                    <div className="flex items-center gap-1 text-[11px] text-amber-400 mb-1.5 font-medium">
                       <AlertCircle className="w-3 h-3 shrink-0" />
                       <span>Outside current lesson scope</span>
                     </div>
@@ -294,56 +292,69 @@ export const AITutorDrawer = ({
                   <MarkdownRenderer content={msg.content} />
                 </div>
 
-                {/* Clean Suggested Follow-ups */}
+                {/* Clean Animated Suggested Follow-ups */}
                 {!isUser && msg.suggestedFollowUps && msg.suggestedFollowUps.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 pl-1 max-w-[90%]">
+                  <div className="flex flex-wrap gap-1.5 mt-2 pl-1 max-w-[92%]">
                     {msg.suggestedFollowUps.map((sug, sIdx) => (
-                      <button
+                      <motion.button
                         key={sIdx}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: sIdx * 0.05 + 0.05, duration: 0.2 }}
+                        whileHover={{ scale: 1.02, x: 2 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => handleSendMessage(sug)}
-                        className="text-left text-[11px] px-2.5 py-1 rounded-md bg-[#161b26] hover:bg-[#1f2535] border border-white/10 text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        className="text-left text-[11px] px-3 py-1.5 rounded-lg bg-[#141a26] hover:bg-[#1c2436] border border-white/10 hover:border-cyan-500/40 text-zinc-300 hover:text-cyan-200 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm group"
                       >
                         <span>{sug}</span>
-                        <ChevronRight className="w-2.5 h-2.5 opacity-60" />
-                      </button>
+                        <ChevronRight className="w-2.5 h-2.5 text-zinc-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
+                      </motion.button>
                     ))}
                   </div>
                 )}
-              </div>
+              </motion.div>
             );
           })}
 
-          {/* Reasoning / Loading state */}
+          {/* Reasoning / Loading state with 3 animated bouncing dots */}
           {loading && (
-            <div className="flex items-center space-x-2 bg-[#161b26] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-zinc-400 w-fit">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              <span>Thinking...</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center space-x-2.5 bg-[#141a26] border border-cyan-500/20 rounded-2xl px-4 py-2.5 text-xs text-zinc-300 w-fit shadow-lg shadow-cyan-950/20"
+            >
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" />
+              </div>
+              <span className="text-xs text-zinc-300 font-medium">Thinking...</span>
+            </motion.div>
           )}
 
           {error && !loading && (
-            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between gap-2">
-              <span className="truncate">{error}</span>
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-                className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 text-xs font-semibold shrink-0 cursor-pointer"
-              >
-                Set Key
-              </button>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span className="leading-snug">{error}</span>
+            </motion.div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
         {/* Clean Input Bar */}
-        <div className="p-3 border-t border-white/10 bg-[#121620]">
+        <div className="p-3 border-t border-white/10 bg-[#121826]/90 backdrop-blur-md">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="flex items-center gap-1.5 bg-[#181d29] border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-blue-500/60 transition-colors"
+            className="flex items-center gap-2 bg-[#181f2f] border border-white/10 rounded-xl px-3 py-1.5 focus-within:border-cyan-500/60 focus-within:shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all"
           >
             <input
               ref={inputRef}
@@ -354,13 +365,15 @@ export const AITutorDrawer = ({
               disabled={loading}
               className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50 py-1"
             />
-            <button
+            <motion.button
               type="submit"
               disabled={!input.trim() || loading}
-              className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:pointer-events-none text-white flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              className="w-7 h-7 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-30 disabled:pointer-events-none text-white flex items-center justify-center transition-all shrink-0 cursor-pointer shadow-md shadow-cyan-950/40"
             >
               <Send className="w-3.5 h-3.5" />
-            </button>
+            </motion.button>
           </form>
         </div>
       </motion.div>

@@ -723,7 +723,7 @@ export const StudyMaterialAnalyzer = () => {
 
       {/* Modal: Cheatsheet Viewer */}
       {activeModal === 'cheatsheet' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[10100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#0b0f19] border border-white/15 rounded-3xl p-6 relative">
             <button
               onClick={() => setActiveModal(null)}
@@ -742,7 +742,7 @@ export const StudyMaterialAnalyzer = () => {
 
       {/* Modal: Flashcards Deck */}
       {activeModal === 'flashcards' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[10100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="w-full max-w-2xl bg-[#0b0f19] border border-white/15 rounded-3xl p-6 relative">
             <button
               onClick={() => setActiveModal(null)}
@@ -761,7 +761,7 @@ export const StudyMaterialAnalyzer = () => {
 
       {/* Modal: Quiz Runner */}
       {activeModal === 'quiz' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-[10100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#0b0f19] border border-white/15 rounded-3xl p-6 relative">
             <button
               onClick={() => setActiveModal(null)}

@@ -5,7 +5,7 @@ import { useAuth } from '../features/auth/AuthContext'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { ChevronRight, User, ShieldCheck, LogOut, ChevronDown, KeyRound } from 'lucide-react'
+import { ChevronRight, User, ShieldCheck, LogOut, ChevronDown, Settings } from 'lucide-react'
 import GradientText from './GradientText'
 import './Navbar.css'
 
@@ -20,21 +20,7 @@ export default function Navbar({ currentView, onSwitchView }) {
   const [navHidden, setNavHidden] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [portalContainer] = useState(() => (typeof document !== 'undefined' ? document.body : null))
-  const [hasApiKey, setHasApiKey] = useState(() => {
-    return typeof window !== 'undefined' ? Boolean(localStorage.getItem('padhai_gemini_api_key')) : false
-  })
 
-  useEffect(() => {
-    const checkKey = () => {
-      setHasApiKey(Boolean(localStorage.getItem('padhai_gemini_api_key')))
-    }
-    window.addEventListener('storage', checkKey)
-    window.addEventListener('api-key-updated', checkKey)
-    return () => {
-      window.removeEventListener('storage', checkKey)
-      window.removeEventListener('api-key-updated', checkKey)
-    }
-  }, [])
 
   const navRef = useRef(null)
 
@@ -150,43 +136,50 @@ export default function Navbar({ currentView, onSwitchView }) {
           </div>
 
           {/* Right Side: CTAs & Hamburger Toggle */}
-          <div className="nav-right flex items-center gap-2">
-            {/* Quick API Key Button for BYOK */}
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/10 hover:border-cyan-500/50 bg-[#0d1117] hover:bg-[#161b22] text-xs font-semibold text-[#8a8faa] hover:text-white transition-all whitespace-nowrap shrink-0 cursor-pointer"
-              title={hasApiKey ? "Gemini API Key is configured" : "Click to set your Google Gemini API Key"}
-            >
-              <KeyRound size={13} className={hasApiKey ? "text-emerald-400 shrink-0" : "text-amber-400 shrink-0"} />
-              <span className="hidden sm:inline whitespace-nowrap">{hasApiKey ? "API Key" : "Set API Key"}</span>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasApiKey ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400 animate-pulse"}`} />
-            </button>
+          <div className="nav-right flex items-center gap-3">
 
             {!user ? (
               <>
                 <button
+                  onClick={() => handleNav('/settings', 'settings')}
+                  className="h-10 w-10 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-[#8a8faa] hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                  title="Settings & API Key"
+                  aria-label="Settings"
+                >
+                  <Settings size={17} />
+                </button>
+                <button
                   onClick={() => (openAuthModal ? openAuthModal('login') : navigate('/signin'))}
-                  className="flex items-center justify-center h-9 px-3.5 rounded-xl text-xs font-semibold text-[#8a8faa] hover:text-white hover:bg-white/[0.04] transition-all whitespace-nowrap cursor-pointer"
+                  className="h-10 px-4 rounded-xl text-sm font-semibold text-[#8a8faa] hover:text-white hover:bg-white/[0.05] border border-transparent hover:border-white/10 transition-all whitespace-nowrap cursor-pointer flex items-center justify-center shrink-0"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => (openAuthModal ? openAuthModal('signup') : navigate('/signup'))}
-                  className="group flex items-center justify-center gap-1.5 px-5 h-9 rounded-xl bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] text-xs font-black transition-all duration-300 shadow-[0_0_22px_rgba(0,245,255,0.45)] hover:shadow-[0_0_30px_rgba(0,245,255,0.7)] whitespace-nowrap cursor-pointer"
+                  className="group h-10 px-5 rounded-xl bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] text-sm font-black transition-all duration-300 shadow-[0_0_22px_rgba(0,245,255,0.45)] hover:shadow-[0_0_30px_rgba(0,245,255,0.7)] whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                 >
                   <span>Sign Up</span>
-                  <ChevronRight size={13} strokeWidth={3} className="text-[#020617] group-hover:translate-x-0.5 transition-transform duration-300" />
+                  <ChevronRight size={14} strokeWidth={3} className="text-[#020617] group-hover:translate-x-0.5 transition-transform duration-300" />
                 </button>
               </>
             ) : (
-              <div className="relative group">
-                <button className="flex items-center gap-2.5 px-3.5 h-9.5 rounded-xl bg-[#080c14] border border-white/20 hover:bg-[#0e1422] hover:border-white/30 transition-all text-xs font-bold text-white shadow-xl cursor-pointer">
-                  <span className="w-6.5 h-6.5 rounded-full bg-gradient-to-r from-[#00f5ff] to-[#0284c7] flex items-center justify-center text-[10px] font-black uppercase text-[#020617] shadow-md shrink-0">
-                    {(user.fullName || user.username || user.name || 'U').charAt(0)}
-                  </span>
-                  <span className="font-bold text-white tracking-wide text-xs">{user.fullName || user.username || user.name}</span>
-                  <ChevronDown size={13} className="text-white/70 group-hover:text-white transition-transform duration-200 group-hover:rotate-180" />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleNav('/settings', 'settings')}
+                  className="h-10 w-10 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 text-[#8a8faa] hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                  title="Settings & API Key"
+                  aria-label="Settings"
+                >
+                  <Settings size={17} />
                 </button>
+                <div className="relative group">
+                  <button className="flex items-center gap-2.5 px-3.5 h-10 rounded-xl bg-[#080c14] border border-white/20 hover:bg-[#0e1422] hover:border-white/30 transition-all text-xs font-bold text-white shadow-xl cursor-pointer">
+                    <span className="w-6.5 h-6.5 rounded-full bg-gradient-to-r from-[#00f5ff] to-[#0284c7] flex items-center justify-center text-[10px] font-black uppercase text-[#020617] shadow-md shrink-0">
+                      {(user.fullName || user.username || user.name || 'U').charAt(0)}
+                    </span>
+                    <span className="font-bold text-white tracking-wide text-xs">{user.fullName || user.username || user.name}</span>
+                    <ChevronDown size={13} className="text-white/70 group-hover:text-white transition-transform duration-200 group-hover:rotate-180" />
+                  </button>
                 
                 {/* Dropdown Menu - Opaque dark container */}
                 <div className="absolute right-0 mt-2 w-52 rounded-2xl bg-[#080c14] border border-white/20 shadow-[0_10px_40px_rgba(0,0,0,0.9)] p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
@@ -234,7 +227,8 @@ export default function Navbar({ currentView, onSwitchView }) {
                   </button>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
             {/* Mobile Hamburger Toggle Button */}
             <button 

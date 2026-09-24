@@ -91,6 +91,7 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
   }
 
   body {
@@ -213,10 +214,20 @@
 /* =========================================================================
    Mermaid — GitHub theme
    ========================================================================= */
+.mermaid-container {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+}
+
 .mermaid-container svg {
-  max-width: 100% !important;
+  max-width: min(100%, 620px) !important;
+  max-height: 380px !important;
   height: auto !important;
   font-family: var(--font-sans) !important;
+  margin: 0 auto !important;
 }
 
 .mermaid-paper svg .node rect,
@@ -264,3 +275,21 @@
 }
 .mermaid-dark svg .edgePath path.path { stroke: #58a6ff !important; stroke-width: 1.5px !important; }
 .mermaid-dark svg marker path { fill: #58a6ff !important; stroke: #58a6ff !important; }
+
+/* Suppress any rogue Mermaid error SVGs or containers accidentally appended to body */
+body > svg[aria-roledescription="error"],
+body > svg[id^="dmermaid-"],
+body > [id^="dmermaid-"],
+body > .mermaidError,
+body > .error-icon,
+svg[aria-roledescription="error"],
+.mermaid-container svg[aria-roledescription="error"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}

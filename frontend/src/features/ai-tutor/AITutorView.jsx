@@ -9,10 +9,10 @@ import {
   Check,
   Volume2,
   VolumeX,
-  KeyRound
 } from 'lucide-react';
 import { chatWithAITutor } from '../../services/api';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
+import aiTutorSvg from '../../assets/AI_tutor.svg';
 
 const QUICK_QUESTIONS = [
   'Explain Dijkstra’s algorithm step-by-step',
@@ -143,37 +143,26 @@ export const AITutorView = () => {
       {/* Top Header Card */}
       <div className="rounded-2xl p-3.5 sm:p-4 bg-[#0d1117] border border-white/10 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15">
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
             <img
-              src="/ai-tutor.png"
+              src={aiTutorSvg}
+              onError={(e) => { e.currentTarget.src = '/AI_tutor.svg'; }}
               alt="PadhAI Tutor Mascot"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           </div>
 
           <div>
-            <div className="flex items-center space-x-2">
-              <h2 className="text-sm font-semibold text-white tracking-tight">PadhAI Tutor</h2>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            </div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">PadhAI Tutor</h2>
             <p className="text-xs text-zinc-400 mt-0.5">Ask conceptual doubts, algorithms, or code walkthroughs</p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-            title="Configure Gemini API Key"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300 transition-colors cursor-pointer"
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-xs">API Key</span>
-          </button>
-
-          <button
             onClick={handleReset}
             title="Reset conversation"
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -254,17 +243,9 @@ export const AITutorView = () => {
 
         {/* Error Banner */}
         {error && !loading && (
-          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-2 min-w-0">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span className="truncate">{error}</span>
-            </div>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-              className="px-2.5 py-1 rounded bg-rose-500/20 text-rose-200 text-xs font-medium shrink-0 cursor-pointer"
-            >
-              Set Key
-            </button>
+          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="leading-snug">{error}</span>
           </div>
         )}
 

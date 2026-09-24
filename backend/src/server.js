@@ -25,8 +25,9 @@ import { securityHeadersMiddleware } from "./modules/auth/securityHeaders.middle
 
 const app = express();
 
-// Trust Proxy behind env flag
-if (ENV.TRUST_PROXY || process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true") {
+// Trust Proxy in production (Render, Heroku, reverse proxies) or when explicitly flagged
+const isProduction = process.env.NODE_ENV === "production" || ENV.NODE_ENV === "production";
+if (ENV.TRUST_PROXY || process.env.TRUST_PROXY === "1" || process.env.TRUST_PROXY === "true" || isProduction) {
   app.set("trust proxy", 1);
 }
 
@@ -42,25 +43,29 @@ app.use(securityHeadersMiddleware);
 // Strict CORS Middleware
 const allowedOrigins = [
   ENV.CLIENT_URL,
+  "https://kro-padhai.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:3000",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "http://127.0.0.1:3000",
-].filter(Boolean);
+]
+  .filter(Boolean)
+  .map((url) => url.trim().replace(/\/+$/, ""));
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      
-      let isAllowed = allowedOrigins.includes(origin);
+
+      const cleanOrigin = origin.trim().replace(/\/+$/, "");
+      let isAllowed = allowedOrigins.includes(cleanOrigin);
       if (!isAllowed) {
         try {
-          const parsed = new URL(origin);
-          if (parsed.hostname.endsWith(".vercel.app")) {
+          const parsed = new URL(cleanOrigin);
+          if (parsed.hostname.endsWith(".vercel.app") || parsed.hostname === "kro-padhai.vercel.app") {
             isAllowed = true;
           }
         } catch {}
