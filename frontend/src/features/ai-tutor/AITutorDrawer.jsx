@@ -179,9 +179,11 @@ export const AITutorDrawer = ({
           {/* Top Header Bar */}
           <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/30 shrink-0">
-                <Sparkles className="w-4 h-4" />
-              </div>
+              <img
+                src="/ai-tutor.png"
+                alt="AI Tutor"
+                className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-400/30"
+              />
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">
@@ -242,13 +244,13 @@ export const AITutorDrawer = ({
                 >
                   {/* Avatar */}
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden ${
                       isUser
                         ? 'bg-purple-600 text-white'
-                        : 'bg-white/10 text-purple-300 border border-white/10'
+                        : 'border border-cyan-400/30 shadow-sm'
                     }`}
                   >
-                    {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                    {isUser ? <User className="w-3.5 h-3.5" /> : <img src="/ai-tutor.png" alt="AI Tutor" className="w-full h-full object-cover" />}
                   </div>
 
                   {/* Message Bubble Container */}

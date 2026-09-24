@@ -68,9 +68,11 @@ export const AITutorView = () => {
       {/* Header */}
       <div className="rounded-3xl p-5 bg-[#0d1322] border border-white/10 flex items-center justify-between shadow-xl shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg">
-            <Bot className="w-5 h-5" />
-          </div>
+          <img
+            src="/ai-tutor.png"
+            alt="AI Tutor"
+            className="w-11 h-11 rounded-2xl object-cover shadow-lg shadow-cyan-500/20 border border-cyan-400/30 shrink-0"
+          />
           <div>
             <h2 className="text-base font-black text-white">24/7 AI Tutor</h2>
             <p className="text-xs text-slate-400">Ask any conceptual doubt or code question</p>
