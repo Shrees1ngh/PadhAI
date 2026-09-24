@@ -154,12 +154,12 @@ export default function Navbar({ currentView, onSwitchView }) {
             {/* Quick API Key Button for BYOK */}
             <button
               onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
-              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/10 hover:border-cyan-500/50 bg-[#0d1117] hover:bg-[#161b22] text-xs font-semibold text-[#8a8faa] hover:text-white transition-all cursor-pointer"
-              title="Configure your Google Gemini API Key"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/10 hover:border-cyan-500/50 bg-[#0d1117] hover:bg-[#161b22] text-xs font-semibold text-[#8a8faa] hover:text-white transition-all whitespace-nowrap shrink-0 cursor-pointer"
+              title={hasApiKey ? "Gemini API Key is configured" : "Click to set your Google Gemini API Key"}
             >
-              <KeyRound size={13} className={hasApiKey ? "text-emerald-400" : "text-amber-400"} />
-              <span className="hidden sm:inline">{hasApiKey ? "API Key" : "Set API Key"}</span>
-              <span className={`w-1.5 h-1.5 rounded-full ${hasApiKey ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400 animate-pulse"}`} />
+              <KeyRound size={13} className={hasApiKey ? "text-emerald-400 shrink-0" : "text-amber-400 shrink-0"} />
+              <span className="hidden sm:inline whitespace-nowrap">{hasApiKey ? "API Key" : "Set API Key"}</span>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasApiKey ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400 animate-pulse"}`} />
             </button>
 
             {!user ? (
