@@ -15,30 +15,27 @@ export const GlobalAITutorButton = ({
 
   return (
     <>
-      {/* Floating Bottom-Right AI Tutor Logo Button */}
+      {/* Floating Bottom-Right AI Tutor Logo Button (Borderless Pure Floating Avatar) */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center select-none">
         <motion.button
-          whileHover={{ scale: 1.1, y: -3 }}
-          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.12, y: -4 }}
+          whileTap={{ scale: 0.92 }}
           onClick={() => setIsOpen(!isOpen)}
           title="AI Tutor - Ask any doubt"
           aria-label="Open AI Tutor"
-          className="relative group w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#090d16] border border-cyan-400/40 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,245,255,0.4)] hover:shadow-[0_0_30px_rgba(0,245,255,0.7)] flex items-center justify-center transition-all duration-300 cursor-pointer p-0.5"
+          className="relative group w-14 h-14 sm:w-16 sm:h-16 bg-transparent border-0 outline-none p-0 flex items-center justify-center cursor-pointer transition-all duration-300"
         >
-          {/* Subtle Ambient Glow */}
-          <div className="absolute inset-0 rounded-2xl bg-cyan-500/20 blur-lg opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none -z-10" />
-
-          {/* AI Tutor Avatar */}
+          {/* AI Tutor Avatar with Pure Radiant Glow */}
           <img
             src="/ai-tutor.png"
             alt="AI Tutor Logo"
-            className="w-full h-full object-cover rounded-2xl transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-contain rounded-2xl filter drop-shadow-[0_0_18px_rgba(0,245,255,0.65)] group-hover:drop-shadow-[0_0_28px_rgba(0,245,255,0.95)] transition-all duration-300"
           />
 
           {/* Active Online Indicator Dot */}
-          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 z-10">
+          <span className="absolute top-0.5 right-0.5 flex h-3.5 w-3.5 z-10 pointer-events-none">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 border-2 border-[#080c14]" />
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 border-2 border-[#090d16] shadow-sm" />
           </span>
         </motion.button>
       </div>

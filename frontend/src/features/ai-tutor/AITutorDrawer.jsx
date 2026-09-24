@@ -6,26 +6,29 @@ import {
   User,
   Send,
   X,
-  RefreshCw,
+  RotateCcw,
   Lightbulb,
   Code2,
   HelpCircle,
   Puzzle,
   AlertCircle,
-  Layers,
-  ChevronRight,
+  Copy,
+  Check,
   BookOpen,
   ArrowRight,
-  CornerDownLeft,
+  KeyRound,
+  ExternalLink,
+  ChevronRight,
+  Zap
 } from 'lucide-react';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
 import { sendTutorChatMessage } from '../../services/api';
 
-const QUICK_ACTIONS = [
-  { label: 'Explain simpler', icon: Lightbulb, query: 'Can you explain the main idea of this lesson in simpler terms with basic intuition?' },
-  { label: 'Give an example', icon: Code2, query: 'Can you provide a concrete, real-world practical example or code walkthrough for this lesson?' },
-  { label: 'Give an analogy', icon: Puzzle, query: 'Can you give me an intuitive real-world analogy to help me remember this concept?' },
-  { label: 'Quiz me', icon: HelpCircle, query: 'Ask me a quick conceptual question to test my understanding of this lesson.' },
+const PROMPT_SUGGESTIONS = [
+  { label: 'Explain intuitively', icon: Lightbulb, query: 'Can you explain the core intuition of this concept in simple terms without heavy jargon?' },
+  { label: 'Code walkthrough', icon: Code2, query: 'Can you walk me through a clean, well-commented code implementation of this step-by-step?' },
+  { label: 'Real-world analogy', icon: Puzzle, query: 'Give me a vivid, real-world analogy to help me remember how this works.' },
+  { label: 'Quiz my knowledge', icon: HelpCircle, query: 'Ask me a sharp conceptual question or tricky edge-case to test if I really understand this.' },
 ];
 
 export const AITutorDrawer = ({
@@ -43,12 +46,13 @@ export const AITutorDrawer = ({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
   // API Key from localStorage
-  const apiKey = localStorage.getItem('padhai_gemini_api_key') || '';
+  const apiKey = typeof window !== 'undefined' ? localStorage.getItem('padhai_gemini_api_key') || '' : '';
 
   // Initialize/Reset conversation when lessonKey changes
   useEffect(() => {
@@ -57,12 +61,12 @@ export const AITutorDrawer = ({
         {
           id: 'welcome',
           role: 'assistant',
-          content: `👋 Hi! I'm your **PadhAI Tutor** for **${lessonTitle}**.\n\nI'm contextualized to your current lesson material (${learnerLevel} level). Ask me to clarify any doubt, provide an analogy, or break down tricky edge cases!`,
-          relatedConcepts: lessonContent?.keyConcepts?.slice(0, 3) || [],
+          content: `Hi! I'm your **PadhAI Socratic Tutor** for **${lessonTitle}**.\n\nI'm grounded in your active course materials at the **${learnerLevel}** level. Ask me to break down tricky concepts, debug code, or explore practical edge cases!`,
+          relatedConcepts: lessonContent?.keyConcepts?.slice(0, 4) || [],
           suggestedFollowUps: [
-            'Explain simpler',
-            'Give an example',
-            'Give an analogy',
+            'Explain the core intuition',
+            'Show code implementation',
+            'What are common pitfalls?',
           ],
         },
       ]);
@@ -81,6 +85,15 @@ export const AITutorDrawer = ({
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [messages, isOpen, loading]);
+
+  // Handle Copy Message Content
+  const handleCopy = (id, text) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
 
   // Handle Send Message
   const handleSendMessage = async (textToSend) => {
@@ -135,15 +148,15 @@ export const AITutorDrawer = ({
       }
     } catch (err) {
       console.error('AI Tutor error:', err);
-      setError(err.message || 'Failed to connect to AI Tutor. Please try again.');
+      const isKeyErr = err.code === 'API_KEY_REQUIRED' || err.message?.toLowerCase().includes('gemini api key is required');
+      if (isKeyErr) {
+        setError('Google Gemini API Key required. Click "Set Key" to continue.');
+      } else {
+        setError(err.message || 'Connection failed. Please check your network or API key.');
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  // Quick Action Handler
-  const handleQuickAction = (queryText) => {
-    handleSendMessage(queryText);
   };
 
   // Reset Chat Session
@@ -152,8 +165,8 @@ export const AITutorDrawer = ({
       {
         id: Date.now().toString(),
         role: 'assistant',
-        content: `Chat reset. I'm ready to answer any questions about **${lessonTitle}**!`,
-        relatedConcepts: [],
+        content: `Chat session refreshed. What would you like to explore about **${lessonTitle || 'this topic'}**?`,
+        relatedConcepts: lessonContent?.keyConcepts?.slice(0, 3) || [],
         suggestedFollowUps: ['Explain simpler', 'Give an example', 'Quiz me'],
       },
     ]);
@@ -164,145 +177,174 @@ export const AITutorDrawer = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/60 backdrop-blur-sm transition-opacity">
-        {/* Drawer Backdrop click to close */}
+      <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/70 backdrop-blur-sm transition-opacity">
+        {/* Backdrop click to close */}
         <div className="absolute inset-0" onClick={onClose} />
 
-        {/* Drawer Container */}
+        {/* Next-Level Glassmorphic Drawer */}
         <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-          className="relative w-full max-w-lg h-full bg-[#090d16] border-l border-white/10 shadow-2xl flex flex-col z-10"
+          initial={{ x: '100%', opacity: 0.5 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: '100%', opacity: 0.5 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+          className="relative w-full max-w-xl h-full bg-[#080c16]/95 backdrop-blur-2xl border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col z-10 select-text"
         >
           {/* Top Header Bar */}
-          <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-            <div className="flex items-center space-x-3">
-              <img
-                src="/ai-tutor.png"
-                alt="AI Tutor"
-                className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-cyan-500/20 shrink-0 border border-cyan-400/30"
-              />
-              <div>
+          <div className="p-4 sm:px-6 sm:py-4.5 border-b border-white/[0.08] flex items-center justify-between bg-gradient-to-r from-white/[0.03] to-transparent">
+            <div className="flex items-center space-x-3.5 min-w-0">
+              {/* 3D Robot Logo */}
+              <div className="relative shrink-0">
+                <img
+                  src="/ai-tutor.png"
+                  alt="PadhAI Tutor"
+                  className="w-10 h-10 rounded-2xl object-contain filter drop-shadow-[0_0_12px_rgba(0,245,255,0.6)]"
+                />
+                <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border border-[#080c16]" />
+                </span>
+              </div>
+
+              <div className="min-w-0">
                 <div className="flex items-center space-x-2">
                   <h3 className="text-sm font-bold text-white tracking-tight">
-                    PadhAI Lesson Tutor
+                    PadhAI Socratic Tutor
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Active</span>
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[#00f5ff] text-[10px] font-semibold tracking-wide uppercase">
+                    AI Active
                   </span>
                 </div>
-                <div className="text-xs text-purple-300 font-medium truncate max-w-[240px]">
-                  Grounded: {lessonTitle || 'Active Lesson'}
-                </div>
+                <p className="text-xs text-[#8a8faa] truncate mt-0.5">
+                  Grounded to: <span className="text-[#38bdf8] font-medium">{lessonTitle || moduleTitle || 'Current Lesson'}</span>
+                </p>
               </div>
             </div>
 
-            {/* Header Action Buttons */}
-            <div className="flex items-center space-x-2">
+            {/* Header Actions */}
+            <div className="flex items-center space-x-1.5 shrink-0">
               <button
                 onClick={handleResetChat}
-                title="Reset this chat session"
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all text-xs"
+                title="Restart conversation"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#8a8faa] hover:text-white transition-all cursor-pointer"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
 
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all"
+                title="Close Tutor"
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#8a8faa] hover:text-white transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Quick Context Strip */}
-          <div className="px-4 py-2 bg-purple-950/20 border-b border-purple-500/10 flex items-center justify-between text-xs text-purple-200">
-            <div className="flex items-center space-x-1.5 truncate">
-              <BookOpen className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-              <span className="truncate">{moduleTitle}</span>
+          {/* Lesson Context Ribbon */}
+          {(moduleTitle || learnerLevel) && (
+            <div className="px-5 py-2 bg-[#0c1220] border-b border-white/[0.06] flex items-center justify-between text-xs text-[#8a8faa]">
+              <div className="flex items-center space-x-2 truncate">
+                <BookOpen className="w-3.5 h-3.5 text-[#00f5ff] shrink-0" />
+                <span className="truncate">{moduleTitle || lessonTitle}</span>
+              </div>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[#161f33] text-[#7dd3fc] border border-cyan-500/20 shrink-0">
+                {learnerLevel} Track
+              </span>
             </div>
-            <span className="font-mono text-xs px-2 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/20 shrink-0">
-              {learnerLevel}
-            </span>
-          </div>
+          )}
 
           {/* Chat Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
             {messages.map((msg) => {
               const isUser = msg.role === 'user';
+              const isCopied = copiedId === msg.id;
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex items-start space-x-2.5 ${
-                    isUser ? 'flex-row-reverse space-x-reverse' : ''
+                  className={`flex items-start gap-3 ${
+                    isUser ? 'flex-row-reverse' : 'flex-row'
                   }`}
                 >
                   {/* Avatar */}
-                  <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold overflow-hidden ${
-                      isUser
-                        ? 'bg-purple-600 text-white'
-                        : 'border border-cyan-400/30 shadow-sm'
-                    }`}
-                  >
-                    {isUser ? <User className="w-3.5 h-3.5" /> : <img src="/ai-tutor.png" alt="AI Tutor" className="w-full h-full object-cover" />}
+                  <div className="shrink-0 mt-0.5">
+                    {isUser ? (
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1f6feb] to-[#388bfd] text-white flex items-center justify-center text-xs font-bold shadow-md">
+                        <User className="w-4 h-4" />
+                      </div>
+                    ) : (
+                      <img
+                        src="/ai-tutor.png"
+                        alt="Tutor"
+                        className="w-8 h-8 rounded-xl object-contain filter drop-shadow-[0_0_8px_rgba(0,245,255,0.5)]"
+                      />
+                    )}
                   </div>
 
                   {/* Message Bubble Container */}
-                  <div
-                    className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed space-y-2.5 ${
-                      isUser
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20 rounded-tr-none'
-                        : 'bg-slate-900/80 border border-white/10 text-slate-200 rounded-tl-none shadow-md'
-                    }`}
-                  >
-                    {/* Scope Notice Badge */}
-                    {msg.isOutsideLessonScope && (
-                      <div className="flex items-center space-x-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md mb-1">
-                        <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
-                        <span>Question outside primary lesson scope</span>
-                      </div>
-                    )}
+                  <div className={`max-w-[85%] space-y-2 ${isUser ? 'items-end' : 'items-start'}`}>
+                    <div
+                      className={`relative group rounded-2xl p-4 text-xs sm:text-[13px] leading-relaxed transition-all shadow-md ${
+                        isUser
+                          ? 'bg-gradient-to-r from-[#1f6feb] to-[#2563eb] text-white rounded-tr-sm shadow-[0_4px_16px_rgba(31,111,235,0.25)]'
+                          : 'bg-[#0d1424] border border-white/[0.08] text-[#e6edf3] rounded-tl-sm'
+                      }`}
+                    >
+                      {/* Copy Action for AI Responses */}
+                      {!isUser && (
+                        <button
+                          onClick={() => handleCopy(msg.id, msg.content)}
+                          title="Copy response"
+                          className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#8a8faa] hover:text-white transition-opacity opacity-0 group-hover:opacity-100 cursor-pointer"
+                        >
+                          {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
 
-                    {/* Content Markdown */}
-                    <div className={isUser ? 'text-white' : ''}>
-                      <MarkdownRenderer content={msg.content} />
+                      {/* Scope Notice Badge */}
+                      {msg.isOutsideLessonScope && (
+                        <div className="flex items-center space-x-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md mb-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>Question falls slightly outside lesson scope</span>
+                        </div>
+                      )}
+
+                      {/* Content Markdown */}
+                      <div className={isUser ? 'text-white' : ''}>
+                        <MarkdownRenderer content={msg.content} />
+                      </div>
+
+                      {/* Related Concept Chips */}
+                      {!isUser && msg.relatedConcepts && msg.relatedConcepts.length > 0 && (
+                        <div className="pt-3 mt-2 border-t border-white/[0.06] flex flex-wrap gap-1.5">
+                          {msg.relatedConcepts.map((concept, cIdx) => (
+                            <button
+                              key={cIdx}
+                              onClick={() => handleSendMessage(`Explain ${concept} in detail`)}
+                              className="px-2 py-0.5 rounded-md bg-[#161f33] hover:bg-[#1f2c4a] border border-cyan-500/20 text-[#7dd3fc] text-[11px] font-medium transition-colors cursor-pointer"
+                            >
+                              🏷️ {concept}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Related Concept Tags */}
-                    {!isUser && msg.relatedConcepts && msg.relatedConcepts.length > 0 && (
-                      <div className="pt-2 border-t border-white/5 flex flex-wrap gap-1.5">
-                        {msg.relatedConcepts.map((concept, cIdx) => (
-                          <span
-                            key={cIdx}
-                            className="px-2 py-0.5 rounded-md bg-purple-950/50 border border-purple-500/20 text-purple-300 text-xs font-medium"
-                          >
-                            🏷️ {concept}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Suggested Follow-Up Prompt Chips */}
+                    {/* Suggested Follow-Ups */}
                     {!isUser && msg.suggestedFollowUps && msg.suggestedFollowUps.length > 0 && (
-                      <div className="pt-2 border-t border-white/5 space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <div className="pt-1.5 space-y-1 pl-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#6e7681]">
                           Suggested follow-ups:
                         </div>
-                        <div className="flex flex-col space-y-1">
-                          {msg.suggestedFollowUps.map((suggestion, sIdx) => (
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.suggestedFollowUps.map((sug, sIdx) => (
                             <button
                               key={sIdx}
-                              onClick={() => handleSendMessage(suggestion)}
-                              className="text-left text-xs px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-purple-600/20 hover:border-purple-500/40 border border-white/5 text-purple-200 transition-all flex items-center justify-between group"
+                              onClick={() => handleSendMessage(sug)}
+                              className="text-left text-xs px-3 py-1.5 rounded-xl bg-[#0c1220] hover:bg-[#162035] hover:border-cyan-500/40 border border-white/[0.07] text-[#8a8faa] hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm"
                             >
-                              <span className="truncate pr-2">{suggestion}</span>
-                              <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-purple-300 shrink-0" />
+                              <span>{sug}</span>
+                              <ChevronRight className="w-3 h-3 text-[#58a6ff]" />
                             </button>
                           ))}
                         </div>
@@ -313,49 +355,58 @@ export const AITutorDrawer = ({
               );
             })}
 
-            {/* Thinking / Loading Animation */}
+            {/* Thinking / Reasoning Animation */}
             {loading && (
-              <div className="flex items-start space-x-2.5">
-                <div className="w-7 h-7 rounded-lg bg-white/10 text-purple-300 border border-white/10 flex items-center justify-center shrink-0">
-                  <Bot className="w-3.5 h-3.5" />
-                </div>
-                <div className="bg-slate-900/80 border border-white/10 rounded-2xl rounded-tl-none p-3.5 flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" />
-                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:0.4s]" />
-                  <span className="text-xs text-slate-400 pl-1">Thinking with lesson context...</span>
+              <div className="flex items-start space-x-3">
+                <img
+                  src="/ai-tutor.png"
+                  alt="Tutor"
+                  className="w-8 h-8 rounded-xl object-contain filter drop-shadow-[0_0_8px_rgba(0,245,255,0.5)] shrink-0"
+                />
+                <div className="bg-[#0d1424] border border-white/[0.08] rounded-2xl rounded-tl-sm p-4 flex items-center space-x-3 shadow-md">
+                  <div className="flex space-x-1">
+                    <span className="w-2 h-2 rounded-full bg-[#00f5ff] animate-bounce" />
+                    <span className="w-2 h-2 rounded-full bg-[#38bdf8] animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#818cf8] animate-bounce [animation-delay:0.4s]" />
+                  </div>
+                  <span className="text-xs text-[#8a8faa] font-medium">PadhAI is reasoning through your concept...</span>
                 </div>
               </div>
             )}
 
             {/* Error Banner */}
             {error && !loading && (
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-start space-x-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div className="flex-1">{error}</div>
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center justify-between gap-2 shadow-md">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span className="truncate">{error}</span>
+                </div>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
+                  className="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 text-xs font-semibold shrink-0 transition-colors cursor-pointer"
+                >
+                  Set Key
+                </button>
               </div>
             )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Quick Actions Strip */}
-          <div className="p-3 border-t border-white/5 bg-white/[0.01]">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-              Quick Actions for this Lesson:
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {QUICK_ACTIONS.map((action, idx) => {
+          {/* Quick Action Chips Strip */}
+          <div className="px-4 py-2.5 border-t border-white/[0.06] bg-[#070b14]/70">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              {PROMPT_SUGGESTIONS.map((action, idx) => {
                 const IconComponent = action.icon;
                 return (
                   <button
                     key={idx}
-                    onClick={() => handleQuickAction(action.query)}
+                    onClick={() => handleSendMessage(action.query)}
                     disabled={loading}
-                    className="p-2 rounded-xl bg-slate-900/60 hover:bg-purple-600/20 border border-white/5 hover:border-purple-500/30 text-slate-300 hover:text-purple-200 text-xs font-medium transition-all flex items-center space-x-1.5 truncate disabled:opacity-50"
+                    className="px-2.5 py-1.5 rounded-lg bg-[#0e1628] hover:bg-[#17233f] border border-white/[0.08] hover:border-cyan-500/40 text-[#8a8faa] hover:text-white text-xs font-medium transition-all flex items-center space-x-1.5 whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
                   >
-                    <IconComponent className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <span className="truncate">{action.label}</span>
+                    <IconComponent className="w-3.5 h-3.5 text-[#00f5ff] shrink-0" />
+                    <span>{action.label}</span>
                   </button>
                 );
               })}
@@ -363,35 +414,30 @@ export const AITutorDrawer = ({
           </div>
 
           {/* Message Input Form */}
-          <div className="p-4 border-t border-white/10 bg-[#090d16]">
+          <div className="p-4 border-t border-white/[0.08] bg-[#080c16]">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSendMessage();
               }}
-              className="flex items-center space-x-2"
+              className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#0e1424] border border-white/10 focus-within:border-[#00f5ff]/60 focus-within:ring-2 focus-within:ring-[#00f5ff]/20 transition-all shadow-xl"
             >
-              <div className="relative flex-1">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={`Ask a question about ${lessonTitle || 'this lesson'}...`}
-                  disabled={loading}
-                  className="w-full pl-3.5 pr-10 py-3 rounded-xl bg-slate-900/90 border border-white/10 focus:border-purple-500 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all disabled:opacity-50"
-                />
-                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono hidden sm:block">
-                  ↵
-                </div>
-              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask doubt on ${lessonTitle || 'this concept'}...`}
+                disabled={loading}
+                className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-white placeholder-[#6e7681] focus:outline-none disabled:opacity-50"
+              />
 
               <button
                 type="submit"
                 disabled={!input.trim() || loading}
-                className="p-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white transition-all shadow-lg shadow-purple-600/25 disabled:opacity-40 disabled:pointer-events-none shrink-0"
+                className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#00f5ff] to-[#38bdf8] hover:from-[#7dd3fc] hover:to-[#00f5ff] text-[#020617] flex items-center justify-center transition-all shadow-[0_0_15px_rgba(0,245,255,0.4)] disabled:opacity-30 disabled:pointer-events-none shrink-0 cursor-pointer"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4 text-[#020617] stroke-[2.5]" />
               </button>
             </form>
           </div>
