@@ -5,7 +5,7 @@ import { useAuth } from '../features/auth/AuthContext'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { ChevronRight, User, ShieldCheck, LogOut, ChevronDown } from 'lucide-react'
+import { ChevronRight, User, ShieldCheck, LogOut, ChevronDown, KeyRound } from 'lucide-react'
 import GradientText from './GradientText'
 import './Navbar.css'
 
@@ -20,6 +20,21 @@ export default function Navbar({ currentView, onSwitchView }) {
   const [navHidden, setNavHidden] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [portalContainer] = useState(() => (typeof document !== 'undefined' ? document.body : null))
+  const [hasApiKey, setHasApiKey] = useState(() => {
+    return typeof window !== 'undefined' ? Boolean(localStorage.getItem('padhai_gemini_api_key')) : false
+  })
+
+  useEffect(() => {
+    const checkKey = () => {
+      setHasApiKey(Boolean(localStorage.getItem('padhai_gemini_api_key')))
+    }
+    window.addEventListener('storage', checkKey)
+    window.addEventListener('api-key-updated', checkKey)
+    return () => {
+      window.removeEventListener('storage', checkKey)
+      window.removeEventListener('api-key-updated', checkKey)
+    }
+  }, [])
 
   const navRef = useRef(null)
 
@@ -135,7 +150,18 @@ export default function Navbar({ currentView, onSwitchView }) {
           </div>
 
           {/* Right Side: CTAs & Hamburger Toggle */}
-          <div className="nav-right">
+          <div className="nav-right flex items-center gap-2">
+            {/* Quick API Key Button for BYOK */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-api-key-modal'))}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/10 hover:border-cyan-500/50 bg-[#0d1117] hover:bg-[#161b22] text-xs font-semibold text-[#8a8faa] hover:text-white transition-all cursor-pointer"
+              title="Configure your Google Gemini API Key"
+            >
+              <KeyRound size={13} className={hasApiKey ? "text-emerald-400" : "text-amber-400"} />
+              <span className="hidden sm:inline">{hasApiKey ? "API Key" : "Set API Key"}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${hasApiKey ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400 animate-pulse"}`} />
+            </button>
+
             {!user ? (
               <>
                 <button

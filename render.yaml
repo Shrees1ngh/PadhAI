@@ -16,8 +16,6 @@ services:
         value: "true"
       - key: MONGO_URI
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_URL

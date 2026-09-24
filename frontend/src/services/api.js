@@ -57,6 +57,17 @@ api.interceptors.response.use(
     enhancedError.data = error.response?.data;
     enhancedError.code = error.response?.data?.code;
     enhancedError.mongoUnavailable = error.response?.data?.mongoUnavailable || false;
+
+    // If API key is missing or rejected, automatically trigger API Key modal
+    if (
+      enhancedError.code === 'API_KEY_REQUIRED' ||
+      rawMessage.toLowerCase().includes('gemini api key is required')
+    ) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('open-api-key-modal'));
+      }
+    }
+
     return Promise.reject(enhancedError);
   }
 );

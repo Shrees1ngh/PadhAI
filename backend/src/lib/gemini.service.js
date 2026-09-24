@@ -64,8 +64,14 @@ export const callGemini = async ({
   jsonMode = true,
 }) => {
   const activeKey = resolveApiKey(apiKey);
-
-  
+  if (!activeKey) {
+    const keyErr = new Error(
+      "Gemini API key is required. Please enter your Google Gemini API key to continue."
+    );
+    keyErr.status = 400;
+    keyErr.code = "API_KEY_REQUIRED";
+    throw keyErr;
+  }
 
   const ai = new GoogleGenAI({ apiKey: activeKey });
   let configuredModel = model || ENV.GEMINI_MODEL || "gemini-3.6-flash";
@@ -297,13 +303,12 @@ export const callAI = async (options) => {
         return callGemini(options);
       }
 
-      // No Gemini key and Ollama is down
+      // No Gemini key provided and Ollama is down
       const err = new Error(
-        `Ollama is not running and no Gemini API key is configured. ` +
-        `Please start Ollama (run: ollama serve) or add GEMINI_API_KEY to server/.env`
+        "Gemini API key is required. Please enter your Google Gemini API key to continue."
       );
-      err.status = 503;
-      err.code = "AI_UNAVAILABLE";
+      err.status = 400;
+      err.code = "API_KEY_REQUIRED";
       throw err;
     }
 

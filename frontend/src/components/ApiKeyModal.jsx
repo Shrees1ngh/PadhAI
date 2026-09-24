@@ -36,6 +36,9 @@ export const ApiKeyModal = ({ isOpen, onClose }) => {
     localStorage.setItem('padhai_gemini_api_key', cleanKey);
     setSaved(true);
     setError(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('api-key-updated'));
+    }
     setTimeout(() => {
       if (onClose) onClose();
     }, 900);
@@ -45,6 +48,9 @@ export const ApiKeyModal = ({ isOpen, onClose }) => {
     localStorage.removeItem('padhai_gemini_api_key');
     setApiKey('');
     setSaved(true);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('api-key-updated'));
+    }
     setTimeout(() => {
       if (onClose) onClose();
     }, 800);

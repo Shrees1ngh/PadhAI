@@ -15,6 +15,7 @@ import StudyPlanner from './features/planner/StudyPlanner';
 import AITutorView from './features/ai-tutor/AITutorView';
 import SettingsView from './features/settings/SettingsView';
 import AuthModal from './features/auth/AuthModal';
+import ApiKeyModal from './components/ApiKeyModal';
 import QuickLearnView from './features/quick-learn/QuickLearnView';
 import GlobalAITutorButton from './features/ai-tutor/GlobalAITutorButton';
 import { useAuth } from './features/auth/AuthContext';
@@ -84,6 +85,13 @@ export function App() {
   const [savedCourses, setSavedCourses] = useState([]);
   const [savedTopics, setSavedTopics] = useState([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenApiKeyModal = () => setApiKeyModalOpen(true);
+    window.addEventListener('open-api-key-modal', handleOpenApiKeyModal);
+    return () => window.removeEventListener('open-api-key-modal', handleOpenApiKeyModal);
+  }, []);
 
   // Multi-Page State Persistence across Refresh & Deep Linking
   const [activeCourse, setActiveCourseState] = useState(() => {
@@ -578,6 +586,15 @@ export function App() {
       activeTopic={activeCourse?.topic || 'General Concepts'}
       activeLessonTitle={activeCourse?.title}
       learnerLevel={activeCourse?.level || 'Beginner'}
+    />
+
+    {/* Global Authentication Modal */}
+    <AuthModal />
+
+    {/* Global BYOK Gemini API Key Modal */}
+    <ApiKeyModal
+      isOpen={apiKeyModalOpen}
+      onClose={() => setApiKeyModalOpen(false)}
     />
 
   </div>
