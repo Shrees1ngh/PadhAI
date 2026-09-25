@@ -750,8 +750,8 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <FlashcardDeck
-                    courseTopic={activeCourse?.topic || 'Computer Science & DSA'}
-                    lessonTitle={activeCourse?.title || 'Key Algorithms & Data Structures'}
+                    courseTopic={activeCourse?.topic || ''}
+                    lessonTitle={activeCourse?.title || ''}
                     currentLevel={activeCourse?.level || 'Beginner'}
                     courseId={activeCourse?._id || activeCourse?.id}
                     onBack={() => navigate('/my-learning')}
